@@ -1,0 +1,38 @@
+name: Publish T-Score Test Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-test-release.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: T-Score-Android-APK
+          path: apk
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 41180180145
+      - name: Prepare APK
+        run: |
+          cp apk/T-Score-debug.apk T-Score.apk
+          sha256sum T-Score.apk > T-Score.apk.sha256
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test-latest
+          name: T-Score Live Test APK
+          body: Latest T-Score Android test APK connected to chat.socialrise.garden.
+          files: |
+            T-Score.apk
+            T-Score.apk.sha256
+          make_latest: true
