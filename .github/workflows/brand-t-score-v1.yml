@@ -1,0 +1,89 @@
+name: T-Score Branding V1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brand-t-score-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  brand:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply visible T-Score branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f .branding-v1-complete ]; then
+            echo "Branding already applied"
+            exit 0
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          p = Path('android/app/src/main/res/values/strings.xml')
+          s = p.read_text(encoding='utf-8')
+          replacements = {
+              '<string name="app_name" translatable="false">Tinode</string>': '<string name="app_name" translatable="false">T-Score</string>',
+              '<string name="app_name_full" translatable="false">Tinode Chat</string>': '<string name="app_name_full" translatable="false">T-Score: Deal with Confidence</string>',
+              '<string name="app_description" translatable="false">Tinode Chat</string>': '<string name="app_description" translatable="false">T-Score: Deal with Confidence</string>',
+              '<string name="tinode_logo" translatable="false">Tinode Logo</string>': '<string name="tinode_logo" translatable="false">T-Score Logo</string>',
+              '<string name="tinode_invite_subject">Check out Tinode Messenger</string>': '<string name="tinode_invite_subject">Check out T-Score</string>',
+              '<string name="tinode_invite_body">Check out Tinode Messenger. Download it from https://tinode.co</string>': '<string name="tinode_invite_body">T-Score — Deal with Confidence</string>',
+              '<string name="profile_action">Tinode profile</string>': '<string name="profile_action">T-Score profile</string>',
+              '<string name="tinode_message">Send Tinode message</string>': '<string name="tinode_message">Send T-Score message</string>',
+              '<string name="download_title">Tinode download</string>': '<string name="download_title">T-Score download</string>',
+              '<string name="default_contact_name">Tinode User %1$s</string>': '<string name="default_contact_name">T-Score User %1$s</string>',
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'Missing expected Android string: {old}')
+              s = s.replace(old, new)
+          p.write_text(s, encoding='utf-8')
+
+          for name in ('web/index.html', 'web/index-dev.html'):
+              p = Path(name)
+              s = p.read_text(encoding='utf-8')
+              s = s.replace('<title>Tinode</title>', '<title>T-Score — Deal with Confidence</title>')
+              s = s.replace('content="Tinode Web"', 'content="T-Score Web"')
+              s = s.replace('content="Tinode instant messenger in a browser"', 'content="T-Score secure messaging and deal-confidence platform"')
+              s = s.replace('content="Tinode Web">', 'content="T-Score Web">')
+              s = s.replace('TinodeWeb does not work without JavaScript.', 'T-Score Web does not work without JavaScript.')
+              p.write_text(s, encoding='utf-8')
+
+          p = Path('web/manifest.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          data['name'] = 'T-Score'
+          data['short_name'] = 'T-Score'
+          data['description'] = 'T-Score — Deal with Confidence'
+          data['prefer_related_applications'] = False
+          data['related_applications'] = []
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          PY
+
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > .branding-v1-complete
+
+      - name: Commit branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/res/values/strings.xml web/index.html web/index-dev.html web/manifest.json .branding-v1-complete
+          if git diff --cached --quiet; then
+            echo "No branding changes to commit"
+            exit 0
+          fi
+          git commit -m "Apply T-Score visible branding v1"
+          git push origin HEAD:main
