@@ -12,12 +12,66 @@ import android.os.Environment;
 import android.provider.Settings;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 public final class AppUpdater {
-    private static final String APK_URL = "https://chat.socialrise.garden/downloads/T-Score.apk";
+    private static final String MANIFEST_URL = "https://chat.socialrise.garden/downloads/version.json";
+    private static final String FALLBACK_APK_URL = "https://chat.socialrise.garden/downloads/T-Score.apk";
 
     private AppUpdater() {}
 
+    public static void checkAndUpdate(Activity activity) {
+        Toast.makeText(activity, "Checking for updates...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(MANIFEST_URL).openConnection();
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
+                conn.setRequestProperty("Accept", "application/json");
+                conn.connect();
+                if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                    throw new IllegalStateException("Update server returned " + conn.getResponseCode());
+                }
+
+                StringBuilder body = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String line;
+                    while ((line = br.readLine()) != null) body.append(line);
+                } finally {
+                    conn.disconnect();
+                }
+
+                JSONObject json = new JSONObject(body.toString());
+                int latestCode = json.getInt("version_code");
+                String latestName = json.optString("version_name", "new version");
+                String apkUrl = json.optString("download_url", FALLBACK_APK_URL);
+
+                activity.runOnUiThread(() -> {
+                    if (latestCode <= BuildConfig.VERSION_CODE) {
+                        Toast.makeText(activity, "T-Score is already up to date", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(activity, "New T-Score " + latestName + " available", Toast.LENGTH_SHORT).show();
+                        downloadAndInstall(activity, apkUrl);
+                    }
+                });
+            } catch (Exception e) {
+                activity.runOnUiThread(() -> Toast.makeText(activity,
+                        "Could not check for updates. Please try again.", Toast.LENGTH_LONG).show());
+            }
+        }, "tscore-update-check").start();
+    }
+
+    // Backward-compatible entry point for existing button wiring.
     public static void downloadAndInstall(Activity activity) {
+        checkAndUpdate(activity);
+    }
+
+    private static void downloadAndInstall(Activity activity, String apkUrl) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !activity.getPackageManager().canRequestPackageInstalls()) {
             Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -33,7 +87,7 @@ public final class AppUpdater {
             return;
         }
 
-        DownloadManager.Request req = new DownloadManager.Request(Uri.parse(APK_URL))
+        DownloadManager.Request req = new DownloadManager.Request(Uri.parse(apkUrl))
                 .setTitle("T-Score update")
                 .setDescription("Downloading latest T-Score version")
                 .setMimeType("application/vnd.android.package-archive")
@@ -52,6 +106,7 @@ public final class AppUpdater {
                 Uri apkUri = dm.getUriForDownloadedFile(downloadId);
                 if (apkUri == null) {
                     Toast.makeText(activity, "Update download failed", Toast.LENGTH_LONG).show();
+                    try { activity.unregisterReceiver(this); } catch (Exception ignored) {}
                     return;
                 }
 
