@@ -1,0 +1,38 @@
+name: Fix T-Score Startup Crash
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-startup-crash.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Guard Crashlytics when Firebase is not configured
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/java/co/tinode/tindroid/TindroidApp.java')
+          s = p.read_text()
+          old = '        // Disable Crashlytics for debug builds.\n        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG);'
+          new = '''        // Crashlytics is optional in T-Score test builds. The app must also start\n        // cleanly when google-services.json is not bundled yet.\n        try {\n            FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG);\n        } catch (IllegalStateException e) {\n            Log.i(TAG, \"Firebase is not configured; Crashlytics disabled for this build\");\n        }'''
+          if old not in s:
+              raise SystemExit('Expected Crashlytics startup block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "T-Score CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add android/app/src/main/java/co/tinode/tindroid/TindroidApp.java
+          git commit -m "Fix startup crash when Firebase is not configured"
+          git push origin HEAD:main
