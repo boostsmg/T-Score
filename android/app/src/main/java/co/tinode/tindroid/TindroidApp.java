@@ -36,8 +36,6 @@ import android.provider.ContactsContract;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.android.installreferrer.api.InstallReferrerClient;
-
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.provider.FontRequest;
@@ -351,14 +349,6 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
     @SuppressWarnings("resource") // Intentionally not using try-with-resources to avoid blocking main thread.
     @Override
     public void onStart(@NonNull LifecycleOwner owner) {
-        // Check if the app was installed from a URL with attributed installation source.
-        // If yes, get the config from hosts.tinode.co.
-        if (UiUtils.isAppFirstRun(sContext)) {
-            Executors.newSingleThreadExecutor().execute(() ->
-                    BrandingConfig.getInstallReferrerFromClient(sContext,
-                            InstallReferrerClient.newBuilder(this).build()));
-        }
-
         // Check if the app has an account already. If so, initialize the shared connection with the server.
         // Initialization may fail if device is not connected to the network.
         String uid = BaseDb.getInstance().getUid();
