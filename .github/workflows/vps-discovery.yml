@@ -2,6 +2,10 @@ name: T-Score VPS Discovery
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/vps-discovery.yml'
 
 jobs:
   discovery:
