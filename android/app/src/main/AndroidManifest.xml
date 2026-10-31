@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -35,14 +36,8 @@
     <uses-feature android:name="android.hardware.telephony.subscription" android:required="false" />
 
     <queries>
-        <intent>
-            <action android:name="android.intent.action.INSERT" />
-            <data android:mimeType="vnd.android.cursor.item/contact" />
-            <category android:name="android.intent.category.DEFAULT"/>
-        </intent>
-        <intent>
-            <action android:name="android.media.action.IMAGE_CAPTURE" />
-        </intent>
+        <intent><action android:name="android.intent.action.INSERT" /><data android:mimeType="vnd.android.cursor.item/contact" /><category android:name="android.intent.category.DEFAULT"/></intent>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
     </queries>
 
     <application
@@ -63,70 +58,29 @@
         <meta-data android:name="firebase_messaging_installation_id_enabled" android:value="true" />
 
         <activity android:name=".InitRouterActivity" android:theme="@style/SplashTheme" android:launchMode="singleTask" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
         <activity android:name=".LoginActivity" android:launchMode="singleTask" android:theme="@style/AppTheme" android:exported="true">
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:host="web.tinode.co" android:scheme="https"/>
-            </intent-filter>
+            <intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:host="web.tinode.co" android:scheme="https"/></intent-filter>
         </activity>
         <activity android:name=".ChatsActivity" android:theme="@style/AppTheme" android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".MessageActivity" android:theme="@style/AppTheme" android:windowSoftInputMode="adjustResize" android:exported="true">
-            <intent-filter android:icon="@mipmap/ic_launcher" tools:ignore="AppLinkUrlError">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="vnd.android.cursor.item/vnd.co.tinode.im" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name=".MessageActivity" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
+            <intent-filter android:icon="@mipmap/ic_launcher" tools:ignore="AppLinkUrlError"><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="vnd.android.cursor.item/vnd.co.tinode.im" /></intent-filter>
+            <intent-filter><action android:name=".MessageActivity" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
         </activity>
         <activity android:name=".StartChatActivity" android:label="@string/action_new_chat" android:theme="@style/AppTheme" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".SendToActivity" android:theme="@style/AppTheme" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
-        </activity>
-        <activity android:name=".CallActivity" android:theme="@style/AppTheme" android:showOnLockScreen="true" android:screenOrientation="locked" android:exported="false" android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" tools:ignore="DiscouragedApi">
-            <intent-filter>
-                <action android:name="tindroidx.intent.action.call.INCOMING" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
+        <activity android:name=".SendToActivity" android:theme="@style/AppTheme" android:exported="true"><intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="*/*" /></intent-filter></activity>
+        <activity android:name=".CallActivity" android:theme="@style/AppTheme" android:showOnLockScreen="true" android:screenOrientation="locked" android:exported="false" android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" tools:ignore="DiscouragedApi"><intent-filter><action android:name="tindroidx.intent.action.call.INCOMING" /><category android:name="android.intent.category.DEFAULT" /></intent-filter></activity>
         <activity android:name="com.google.android.gms.oss.licenses.v2.OssLicensesMenuActivity" android:theme="@style/LicensesTheme" android:exported="false" tools:replace="android:theme" />
 
-        <service android:name=".services.TinodeAccountService" android:exported="false">
-            <intent-filter><action android:name="android.accounts.AccountAuthenticator"/></intent-filter>
-            <meta-data android:name="android.accounts.AccountAuthenticator" android:resource="@xml/authenticator"/>
-        </service>
-        <service android:name=".services.ContactsSyncService" android:exported="false">
-            <intent-filter><action android:name="android.content.SyncAdapter"/></intent-filter>
-            <meta-data android:name="android.content.SyncAdapter" android:resource="@xml/syncadapter"/>
-            <meta-data android:name="android.provider.CONTACTS_STRUCTURE" android:resource="@xml/contacts_source"/>
-        </service>
-        <service android:name=".services.FBaseMessagingService" android:exported="true" tools:ignore="ExportedService">
-            <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>
-        </service>
-        <service android:name=".services.CallConnectionService" android:exported="true" android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE">
-            <intent-filter><action android:name="android.telecom.ConnectionService" /></intent-filter>
-        </service>
+        <service android:name=".services.TinodeAccountService" android:exported="false"><intent-filter><action android:name="android.accounts.AccountAuthenticator"/></intent-filter><meta-data android:name="android.accounts.AccountAuthenticator" android:resource="@xml/authenticator"/></service>
+        <service android:name=".services.ContactsSyncService" android:exported="false"><intent-filter><action android:name="android.content.SyncAdapter"/></intent-filter><meta-data android:name="android.content.SyncAdapter" android:resource="@xml/syncadapter"/><meta-data android:name="android.provider.CONTACTS_STRUCTURE" android:resource="@xml/contacts_source"/></service>
+        <service android:name=".services.FBaseMessagingService" android:exported="true" tools:ignore="ExportedService"><intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter></service>
+        <service android:name=".services.CallConnectionService" android:exported="true" android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"><intent-filter><action android:name="android.telecom.ConnectionService" /></intent-filter></service>
 
         <receiver android:name=".HangUpBroadcastReceiver" />
 
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.provider"
-            android:exported="false"
-            android:grantUriPermissions="true">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.provider" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/provider_paths"/>
         </provider>
     </application>
