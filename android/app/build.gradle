@@ -44,6 +44,9 @@ android {
     buildTypes {
         debug {
             resValue "string", "default_host_name", '"' + tscoreServerHost + '"'
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
         }
         release {
             resValue "string", "default_host_name", '"' + tscoreServerHost + '"'
