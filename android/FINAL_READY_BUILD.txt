@@ -1,0 +1,1 @@
+Final hardened T-Score test build: simplified signup, in-app updater, live chat.socialrise.garden backend, optional Firebase startup, upstream Tinode first-run branding removed.
