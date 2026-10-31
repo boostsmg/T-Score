@@ -1,4 +1,4 @@
-name: T-Score Actions Check
+name: Bootstrap T-Score Messenger
 
 on:
   push:
@@ -7,9 +7,98 @@ on:
       - '.github/workflows/bootstrap-t-score.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  check:
+  import-upstream:
     runs-on: ubuntu-latest
     steps:
-      - name: Runner check
-        run: echo "T-Score GitHub Actions runner is working"
+      - name: Checkout T-Score
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Stop if already bootstrapped
+        id: guard
+        shell: bash
+        run: |
+          if [ -f .bootstrap-complete ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Import Tinode server, Android and Web clients
+        if: steps.guard.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf server android web
+          rm -rf /tmp/tinode-server /tmp/tinode-android /tmp/tinode-web
+
+          git clone --depth 1 https://github.com/tinode/chat.git /tmp/tinode-server
+          git clone --depth 1 https://github.com/tinode/tindroid.git /tmp/tinode-android
+          git clone --depth 1 https://github.com/tinode/webapp.git /tmp/tinode-web
+
+          rm -rf /tmp/tinode-server/.git /tmp/tinode-android/.git /tmp/tinode-web/.git
+          mkdir -p server android web
+          cp -a /tmp/tinode-server/. server/
+          cp -a /tmp/tinode-android/. android/
+          cp -a /tmp/tinode-web/. web/
+
+          cat > README.md <<'EOF'
+          # T-Score: Deal with Confidence
+
+          T-Score is a self-hosted messaging and trust/deal platform being built on an open-source Tinode foundation.
+
+          ## Repository layout
+
+          - `server/` — Tinode messaging server base
+          - `android/` — Tinode Android client base
+          - `web/` — Tinode web client base
+
+          ## Branding
+
+          Product name: **T-Score**
+          Tagline: **Deal with Confidence**
+
+          Product-specific branding, package IDs, UI, trust/deal features, infrastructure configuration and deployment are maintained in this repository.
+
+          ## Upstream attribution and licenses
+
+          Initial foundation incorporates open-source components from:
+
+          - https://github.com/tinode/chat
+          - https://github.com/tinode/tindroid
+          - https://github.com/tinode/webapp
+
+          Original license files and notices are retained inside each imported component. Distribution and modification must comply with the applicable upstream licenses.
+          EOF
+
+          cat > UPSTREAM.md <<'EOF'
+          # Upstream Sources
+
+          Initial T-Score messenger foundation imported from Tinode.
+
+          | Component | Upstream | Local path |
+          |---|---|---|
+          | Messaging server | https://github.com/tinode/chat | `server/` |
+          | Android client | https://github.com/tinode/tindroid | `android/` |
+          | Web client | https://github.com/tinode/webapp | `web/` |
+
+          Upstream Git history is not embedded in this monorepo. Source URLs are preserved here for attribution and future syncing.
+          EOF
+
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > .bootstrap-complete
+
+      - name: Commit imported foundation
+        if: steps.guard.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Bootstrap T-Score messenger foundation"
+          git push origin HEAD:main
