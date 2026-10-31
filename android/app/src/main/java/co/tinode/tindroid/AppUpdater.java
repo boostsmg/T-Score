@@ -13,7 +13,7 @@ import android.provider.Settings;
 import android.widget.Toast;
 
 public final class AppUpdater {
-    private static final String APK_URL = "https://github.com/boostsmg/T-Score/releases/download/test-latest/T-Score.apk";
+    private static final String APK_URL = "https://chat.socialrise.garden/downloads/T-Score.apk";
 
     private AppUpdater() {}
 
