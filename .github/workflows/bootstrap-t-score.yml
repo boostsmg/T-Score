@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   import-upstream:
-    if: github.repository == 'boostsmg/T-Score' && !contains(github.event.head_commit.message || '', '[bootstrap-complete]')
+    if: github.repository == 'boostsmg/T-Score'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout T-Score
