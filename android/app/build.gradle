@@ -9,7 +9,7 @@ if (hasReleaseKeystore) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
-def tscoreServerHost = project.findProperty('TSCORE_SERVER_HOST') ?: 'api.tinode.co'
+def tscoreServerHost = project.findProperty('TSCORE_SERVER_HOST') ?: 'chat.socialrise.garden'
 
 android {
     namespace 'co.tinode.tindroid'
