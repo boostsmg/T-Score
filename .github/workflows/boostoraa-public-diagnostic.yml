@@ -1,0 +1,27 @@
+name: Boostoraa Public Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/boostoraa-public-diagnostic.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public endpoints
+        shell: bash
+        run: |
+          set +e
+          echo '=== DNS ==='
+          getent ahostsv4 boostoraa.com || true
+          getent ahostsv4 boostsmg.com || true
+          echo '=== HTTPS boostoraa ==='
+          curl -vkIL --max-time 20 https://boostoraa.com/ 2>&1 | tail -n 60
+          echo '=== HTTPS boostsmg ==='
+          curl -vkIL --max-time 20 https://boostsmg.com/ 2>&1 | tail -n 60
+          echo '=== VPS direct with Host header ==='
+          curl -vkIL --resolve boostoraa.com:443:72.62.195.159 --max-time 20 https://boostoraa.com/ 2>&1 | tail -n 60
+          echo '=== done ==='
