@@ -1,0 +1,115 @@
+name: Prepare T-Score Ready App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-ready-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Harden Android project for standalone T-Score builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          top = Path('android/build.gradle')
+          s = top.read_text()
+          s = s.replace("def process = \"git rev-list --count HEAD\".execute()\n    return process.text.toInteger()",
+                        "def process = \"git rev-list --count HEAD\".execute()\n    def value = process.text.trim()\n    return value ? value.toInteger() : 1")
+          old = '''def process = "git describe --tags".execute()\n    // Remove trailing CR and remove leading 'v' as in 'v1.2.3'\n    return process.text.trim().substring(1)'''
+          new = '''def process = "git describe --tags --always".execute()\n    def value = process.text.trim()\n    if (!value) { return "0.1.0" }\n    return value.startsWith("v") ? value.substring(1) : "0.1.0+" + value.take(8)'''
+          s = s.replace(old, new)
+          top.write_text(s)
+
+          app = Path('android/app/build.gradle')
+          s = app.read_text()
+          s = s.replace("apply plugin: 'com.google.gms.google-services'\n", "")
+          s = s.replace("apply plugin: 'com.google.firebase.crashlytics'\n", "")
+          s = s.replace('def keystorePropertiesFile = rootProject.file("keystore.properties")\ndef keystoreProperties = new Properties()\nkeystoreProperties.load(new FileInputStream(keystorePropertiesFile))',
+                        'def keystorePropertiesFile = rootProject.file("keystore.properties")\ndef keystoreProperties = new Properties()\ndef hasReleaseKeystore = keystorePropertiesFile.exists()\nif (hasReleaseKeystore) { keystoreProperties.load(new FileInputStream(keystorePropertiesFile)) }')
+          s = s.replace("applicationId \"co.tinode.tindroidx\"", "applicationId \"com.tscore.app\"")
+          s = s.replace("signingConfigs {\n        release {\n            storeFile file(keystoreProperties['storeFile'])\n            storePassword keystoreProperties['storePassword']\n            keyAlias keystoreProperties['keyAlias']\n            keyPassword keystoreProperties['keyPassword']\n        }\n    }",
+                        "signingConfigs {\n        if (hasReleaseKeystore) {\n            release {\n                storeFile file(keystoreProperties['storeFile'])\n                storePassword keystoreProperties['storePassword']\n                keyAlias keystoreProperties['keyAlias']\n                keyPassword keystoreProperties['keyPassword']\n            }\n        }\n    }")
+          s = s.replace("resValue \"string\", \"default_host_name\", '\"sandbox.tinode.co\"'",
+                        "resValue \"string\", \"default_host_name\", '\"' + (project.findProperty('TSCORE_SERVER_HOST') ?: 'api.tinode.co') + '\"'")
+          s = s.replace("resValue \"string\", \"default_host_name\", '\"api.tinode.co\"'",
+                        "resValue \"string\", \"default_host_name\", '\"' + (project.findProperty('TSCORE_SERVER_HOST') ?: 'api.tinode.co') + '\"'")
+          s = s.replace("signingConfig signingConfigs.release", "if (hasReleaseKeystore) { signingConfig signingConfigs.release }")
+          s += "\n\nif (file('google-services.json').exists()) {\n    apply plugin: 'com.google.gms.google-services'\n    apply plugin: 'com.google.firebase.crashlytics'\n}\n"
+          app.write_text(s)
+
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          s = manifest.read_text()
+          s = s.replace('android:authorities="co.tinode.tindroid.provider"', 'android:authorities="${applicationId}.provider"')
+          manifest.write_text(s)
+
+          Path('android/keystore.properties.example').write_text('''# Copy to keystore.properties for signed release builds\nstoreFile=/absolute/path/to/tscore-release.keystore\nstorePassword=CHANGE_ME\nkeyAlias=tscore\nkeyPassword=CHANGE_ME\n''')
+
+          Path('T-SCORE-SERVER.md').write_text('''# T-Score Server Configuration\n\nAndroid builds accept `TSCORE_SERVER_HOST` as a Gradle property. Until a dedicated T-Score backend is deployed, the fallback remains the upstream Tinode public server for functional testing.\n\nExample local build:\n\n```bash\ncd android\n./gradlew assembleDebug -PTSCORE_SERVER_HOST=chat.example.com\n```\n\nFor production, deploy the included `server/` component on a dedicated host, enable TLS, then build the APK with that host. Firebase `google-services.json` is optional for basic chat builds but required for production FCM push notifications.\n''')
+          PY
+
+      - name: Add Android CI build workflow
+        shell: bash
+        run: |
+          cat > .github/workflows/android-build.yml <<'EOF'
+          name: Build T-Score Android APK
+
+          on:
+            push:
+              branches: [main]
+              paths:
+                - 'android/**'
+                - '.github/workflows/android-build.yml'
+            workflow_dispatch:
+
+          jobs:
+            build-debug-apk:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    fetch-depth: 0
+                - uses: actions/setup-java@v4
+                  with:
+                    distribution: temurin
+                    java-version: '17'
+                - uses: android-actions/setup-android@v3
+                - name: Build T-Score debug APK
+                  working-directory: android
+                  run: |
+                    chmod +x gradlew
+                    ./gradlew --no-daemon assembleDebug
+                - name: Collect APK
+                  run: |
+                    mkdir -p dist
+                    cp android/app/build/outputs/apk/debug/app-debug.apk dist/T-Score-debug.apk
+                    sha256sum dist/T-Score-debug.apk > dist/T-Score-debug.apk.sha256
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: T-Score-Android-APK
+                    path: dist/*
+                    retention-days: 30
+          EOF
+
+      - name: Commit prepared project
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/build.gradle android/app/build.gradle android/app/src/main/AndroidManifest.xml android/keystore.properties.example T-SCORE-SERVER.md .github/workflows/android-build.yml
+          git commit -m "Prepare standalone T-Score Android build" || exit 0
+          git push origin HEAD:main
