@@ -1,0 +1,43 @@
+name: Harden T-Score Android App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/harden-t-score-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove upstream first-run branding and old deep link
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/java/co/tinode/tindroid/TindroidApp.java')
+          s = p.read_text()
+          old = '''        // Check if the app was installed from a URL with attributed installation source.\n        // If yes, get the config from hosts.tinode.co.\n        if (UiUtils.isAppFirstRun(sContext)) {\n            Executors.newSingleThreadExecutor().execute(() ->\n                    BrandingConfig.getInstallReferrerFromClient(sContext,\n                            InstallReferrerClient.newBuilder(this).build()));\n        }\n\n'''
+          s = s.replace(old, '')
+          s = s.replace('import com.android.installreferrer.api.InstallReferrerClient;\n\n', '')
+          p.write_text(s)
+
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          old = '''        <activity android:name=".LoginActivity" android:launchMode="singleTask" android:theme="@style/AppTheme" android:exported="true">\n            <intent-filter android:autoVerify="true">\n                <action android:name="android.intent.action.VIEW"/>\n                <category android:name="android.intent.category.DEFAULT"/>\n                <category android:name="android.intent.category.BROWSABLE"/>\n                <data android:host="web.tinode.co" android:scheme="https"/>\n            </intent-filter>\n        </activity>'''
+          new = '''        <activity android:name=".LoginActivity" android:launchMode="singleTask" android:theme="@style/AppTheme" android:exported="true" />'''
+          s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Commit hardening
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/co/tinode/tindroid/TindroidApp.java android/app/src/main/AndroidManifest.xml
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Harden T-Score startup and remove upstream deep link"
+          git push
