@@ -227,8 +227,13 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
                 R.array.com_google_android_gms_fonts_certs);
         EmojiCompat.init(new FontRequestEmojiCompatConfig(this, fontRequest));
 
-        // Disable Crashlytics for debug builds.
-        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG);
+        // Crashlytics is optional in T-Score test builds. The app must also start
+        // cleanly when google-services.json is not bundled yet.
+        try {
+            FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG);
+        } catch (IllegalStateException e) {
+            Log.i(TAG, "Firebase is not configured; Crashlytics disabled for this build");
+        }
 
         BroadcastReceiver br = new BroadcastReceiver() {
             @Override
