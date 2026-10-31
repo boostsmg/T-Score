@@ -1,0 +1,38 @@
+name: T-Score VPS Discovery
+
+on:
+  workflow_dispatch:
+
+jobs:
+  discovery:
+    runs-on: [self-hosted, boostoraa-production]
+    timeout-minutes: 10
+    steps:
+      - name: Read-only VPS discovery
+        shell: bash
+        run: |
+          set -u
+          echo '=== host ==='
+          hostname || true
+          uname -a || true
+          echo '=== disk ==='
+          df -h / || true
+          echo '=== memory ==='
+          free -h || true
+          echo '=== listeners ==='
+          ss -ltnp 2>/dev/null | sed -n '1,80p' || true
+          echo '=== nginx ==='
+          systemctl is-active nginx 2>/dev/null || true
+          nginx -T 2>/dev/null | grep -E 'server_name|listen ' | sed -n '1,120p' || true
+          echo '=== docker ==='
+          docker --version 2>/dev/null || true
+          docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null || true
+          echo '=== existing project dirs ==='
+          for d in /var/www/tenant-platform /opt/wireguard-app /root/payment-auto-approver-app /opt/t-score; do
+            if [ -e "$d" ]; then ls -ld "$d"; else echo "missing $d"; fi
+          done
+          echo '=== services ==='
+          systemctl is-active tenant-platform.service 2>/dev/null || true
+          systemctl is-active postgresql 2>/dev/null || true
+          systemctl is-active ssh 2>/dev/null || true
+          echo 'DISCOVERY_COMPLETE'
