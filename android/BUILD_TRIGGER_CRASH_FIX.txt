@@ -1,0 +1,1 @@
+T-Score startup crash fix build trigger - 2026-10-31
