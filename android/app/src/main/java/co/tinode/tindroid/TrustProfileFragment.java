@@ -50,18 +50,30 @@ public class TrustProfileFragment extends Fragment {
         if (profileName != null) profileName.setText(TextUtils.isEmpty(username) ? "T-Score User" : username);
         if (profileUsername != null) profileUsername.setText("@" + (TextUtils.isEmpty(username) ? "tscore-user" : username));
         if (trustBadge != null) trustBadge.setText("NEW PROFILE");
-        if (trustScoreValue != null) trustScoreValue.setText("0 / 100");
-        if (trustScoreStatus != null) trustScoreStatus.setText("Start with identity and contact verification to build a trusted deal profile.");
+        if (trustScoreValue != null) trustScoreValue.setText("0 / " + TrustScoreModel.maximumScore());
+        if (trustScoreStatus != null) {
+            trustScoreStatus.setText("Your score will be calculated by T-Score servers after verification and deal activity.");
+        }
 
-        addCheck("Profile photo", "Add and verify your real photo", "+5 points");
-        addCheck("Email", TextUtils.isEmpty(email) ? "Not added" : "Added · verification pending", "+5 points");
-        addCheck("Phone number", "Not verified", "+10 points");
-        addCheck("CNIC / National ID", "Not verified", "+20 points");
-        addCheck("Address", "Not verified", "+15 points");
-        addCheck("Selfie / liveness", "Not verified", "+10 points");
-        addCheck("Account age", "Builds automatically over time", "Up to +5 points");
-        addCheck("Successful deals", "No completed deals yet", "Up to +15 points");
-        addCheck("Reviews", "No reviews yet", "+10 points");
+        for (TrustScoreModel.Item item : TrustScoreModel.items()) {
+            String status;
+            if ("Email".equals(item.title)) {
+                status = TextUtils.isEmpty(email) ? "Not added" : "Added · verification pending";
+            } else if ("Account age".equals(item.title)) {
+                status = "Builds automatically over time";
+            } else if ("Successful deals".equals(item.title)) {
+                status = "No completed deals yet";
+            } else if ("Reviews".equals(item.title)) {
+                status = "No reviews yet";
+            } else if ("Account standing".equals(item.title)) {
+                status = "Good standing builds automatically";
+            } else if ("Profile Photo".equals(item.title)) {
+                status = "Add and verify your real photo";
+            } else {
+                status = "Not verified";
+            }
+            addCheck(item.title, status, "+" + item.maxPoints + " points");
+        }
 
         Button profile = requireView().findViewById(R.id.profileSettingsButton);
         if (profile != null) {
