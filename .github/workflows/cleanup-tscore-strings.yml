@@ -1,0 +1,47 @@
+name: Cleanup duplicate Android strings
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-tscore-strings.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove duplicate string resources safely
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('android/app/src/main/res/values/strings.xml')
+          lines = p.read_text(encoding='utf-8').splitlines()
+          seen = set()
+          out = []
+          pat = re.compile(r'^\s*<string\s+name="([^"]+)"')
+          removed = []
+          for line in lines:
+              m = pat.match(line)
+              if m:
+                  name = m.group(1)
+                  if name in seen:
+                      removed.append(name)
+                      continue
+                  seen.add(name)
+              out.append(line)
+          p.write_text('\n'.join(out) + '\n', encoding='utf-8')
+          print('Removed duplicate names:', ', '.join(removed) if removed else 'none')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android/app/src/main/res/values/strings.xml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Remove duplicate Android string resources'
+            git push
+          fi
