@@ -1,0 +1,61 @@
+name: Fix T-Score Account Flow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-account-flow.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Harden signup/login account integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ui = Path('android/app/src/main/java/co/tinode/tindroid/UiUtils.java')
+          s = ui.read_text()
+          old = '''        Account acc = Utils.getSavedAccount(AccountManager.get(activity), uid);\n        if (acc != null) {\n            requestImmediateContactsSync(acc);\n            ContentResolver.setSyncAutomatically(acc, Utils.SYNC_AUTHORITY, true);\n            TindroidApp.startWatchingContacts(activity, acc);\n        }\n\n        Intent intent = new Intent(activity, ChatsActivity.class);'''
+          new = '''        // Android account/contacts integration is optional for T-Score.\n        // Never let legacy sync/provider failures crash a successful login or signup.\n        try {\n            Account acc = Utils.getSavedAccount(AccountManager.get(activity), uid);\n            if (acc != null) {\n                try { requestImmediateContactsSync(acc); }\n                catch (Exception e) { Log.w(TAG, "Contacts sync unavailable", e); }\n                try { ContentResolver.setSyncAutomatically(acc, Utils.SYNC_AUTHORITY, true); }\n                catch (Exception e) { Log.w(TAG, "Unable to enable contacts sync", e); }\n                try { TindroidApp.startWatchingContacts(activity, acc); }\n                catch (Exception e) { Log.w(TAG, "Contacts observer unavailable", e); }\n            }\n        } catch (Exception e) {\n            Log.w(TAG, "Android account integration unavailable; continuing without it", e);\n        }\n\n        Intent intent = new Intent(activity, ChatsActivity.class);'''
+          if old not in s:
+              raise SystemExit('onLoginSuccess block not found')
+          s = s.replace(old, new)
+
+          old = '''        if (!TextUtils.isEmpty(token)) {\n            am.setAuthToken(savedAccount, Utils.TOKEN_TYPE, token);\n            am.setUserData(savedAccount, Utils.TOKEN_EXPIRATION_TIME, String.valueOf(tokenExpires.getTime()));\n        }'''
+          new = '''        if (!TextUtils.isEmpty(token)) {\n            try { am.setAuthToken(savedAccount, Utils.TOKEN_TYPE, token); }\n            catch (Exception e) { Log.w(TAG, "Unable to save auth token", e); }\n            if (tokenExpires != null) {\n                try { am.setUserData(savedAccount, Utils.TOKEN_EXPIRATION_TIME, String.valueOf(tokenExpires.getTime())); }\n                catch (Exception e) { Log.w(TAG, "Unable to save token expiration", e); }\n            }\n        }'''
+          if old not in s:
+              raise SystemExit('updateAndroidAccount token block not found')
+          s = s.replace(old, new)
+          ui.write_text(s)
+
+          signup = Path('android/app/src/main/java/co/tinode/tindroid/SignUpFragment.java')
+          s = signup.read_text()
+          old = '''                    public PromisedReply<ServerMessage> onSuccess(ServerMessage msg) {\n                        UiUtils.updateAndroidAccount(parent, tinode.getMyId(),\n                                AuthScheme.basicInstance(login, password).toString(),\n                                tinode.getAuthToken(), tinode.getAuthTokenExpiration());\n                        parent.runOnUiThread(() -> {\n                            if (msg != null && msg.ctrl != null && msg.ctrl.code >= 300 &&\n                                    msg.ctrl.text != null && msg.ctrl.text.contains("validate credentials")) {\n                                signUp.setEnabled(true);\n                                parent.showFragment(LoginActivity.FRAGMENT_CREDENTIALS, null);\n                            } else {\n                                tinode.setAutoLoginToken(tinode.getAuthToken());\n                                UiUtils.onLoginSuccess(parent, signUp, tinode.getMyId());\n                            }\n                        });\n                        return null;\n                    }'''
+          new = '''                    public PromisedReply<ServerMessage> onSuccess(ServerMessage msg) {\n                        try {\n                            UiUtils.updateAndroidAccount(parent, tinode.getMyId(),\n                                    AuthScheme.basicInstance(login, password).toString(),\n                                    tinode.getAuthToken(), tinode.getAuthTokenExpiration());\n                        } catch (Exception e) {\n                            Log.w(TAG, "Android account integration failed; continuing signup", e);\n                        }\n                        parent.runOnUiThread(() -> {\n                            try {\n                                if (msg != null && msg.ctrl != null && msg.ctrl.code >= 300 &&\n                                        msg.ctrl.text != null && msg.ctrl.text.contains("validate credentials")) {\n                                    signUp.setEnabled(true);\n                                    parent.showFragment(LoginActivity.FRAGMENT_CREDENTIALS, null);\n                                } else {\n                                    tinode.setAutoLoginToken(tinode.getAuthToken());\n                                    UiUtils.onLoginSuccess(parent, signUp, tinode.getMyId());\n                                }\n                            } catch (Exception e) {\n                                Log.e(TAG, "Post-signup navigation failed", e);\n                                signUp.setEnabled(true);\n                                Toast.makeText(parent, "Account created. Please sign in.", Toast.LENGTH_LONG).show();\n                                parent.showFragment(LoginActivity.FRAGMENT_LOGIN, null);\n                            }\n                        });\n                        return null;\n                    }'''
+          if old not in s:
+              raise SystemExit('signup success block not found')
+          s = s.replace(old, new)
+          signup.write_text(s)
+          PY
+
+      - name: Commit account-flow fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/co/tinode/tindroid/UiUtils.java android/app/src/main/java/co/tinode/tindroid/SignUpFragment.java
+          git commit -m "Fix signup account creation crashes" || exit 0
+          git push origin HEAD:main
