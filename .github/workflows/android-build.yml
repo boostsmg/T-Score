@@ -47,17 +47,17 @@ jobs:
           name: T-Score-Android-APK
           path: dist/*
           retention-days: 30
-      - name: Publish direct test APK release
+      - name: Refresh direct test APK release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="test-latest"
-          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
-          git tag -f "$TAG" "$GITHUB_SHA"
-          git push origin "refs/tags/$TAG" --force
-          gh release create "$TAG" \
-            dist/T-Score.apk \
-            dist/T-Score.apk.sha256 \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "T-Score Live Test APK" \
-            --notes "Latest T-Score Android test build connected to chat.socialrise.garden."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              dist/T-Score.apk \
+              dist/T-Score.apk.sha256 \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            echo "Existing $TAG release not found; skipping test release asset refresh."
+          fi
