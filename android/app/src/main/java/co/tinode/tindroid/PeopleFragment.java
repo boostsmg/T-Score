@@ -20,14 +20,14 @@ public class PeopleFragment extends Fragment {
 
         Button find = root.findViewById(R.id.peopleStartChat);
         if (find != null) {
-            find.setText("Find people & start chat");
+            find.setText("Find trusted people");
             find.setOnClickListener(v -> startActivity(new Intent(requireContext(), StartChatActivity.class)));
         }
 
         TextView emptyTitle = root.findViewById(R.id.emptyTitle);
         TextView emptySubtitle = root.findViewById(R.id.emptySubtitle);
         if (emptyTitle != null) emptyTitle.setText("Find trusted people");
-        if (emptySubtitle != null) emptySubtitle.setText("Search by username, review a person's T-Score and verification badges, then start a conversation.");
+        if (emptySubtitle != null) emptySubtitle.setText("Search by username, review a person's T-Score and verification badges, then start a conversation with confidence.");
 
         RecyclerView peopleList = root.findViewById(R.id.peopleList);
         View emptyState = root.findViewById(R.id.peopleEmptyState);
