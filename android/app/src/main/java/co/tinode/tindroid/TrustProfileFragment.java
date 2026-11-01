@@ -44,7 +44,7 @@ public class TrustProfileFragment extends Fragment {
         addText("My T-Score", 28, true);
         addText(TextUtils.isEmpty(username) ? "T-Score user" : "@" + username, 18, false);
         addText("0 / 100", 42, true);
-        addText("New profile · Build trust by completing verified checks", 16, false);
+        addText("Deal with confidence · Build trust by completing verified checks", 16, false);
 
         addSection("Verification progress");
         addCheck("Profile photo", "Not verified", "+5 points");
