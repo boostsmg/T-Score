@@ -27,6 +27,7 @@ type Deal struct {
 	ID          string     `json:"id"`
 	BuyerID     string     `json:"buyer_id"`
 	SellerID    string     `json:"seller_id"`
+	CreatedBy   string     `json:"created_by"`
 	Title       string     `json:"title"`
 	Terms       string     `json:"terms"`
 	AmountMinor int64      `json:"amount_minor"`
@@ -42,6 +43,7 @@ type Deal struct {
 type NewDeal struct {
 	BuyerID     string `json:"buyer_id"`
 	SellerID    string `json:"seller_id"`
+	CreatedBy   string `json:"created_by"`
 	Title       string `json:"title"`
 	Terms       string `json:"terms"`
 	AmountMinor int64  `json:"amount_minor"`
@@ -49,6 +51,7 @@ type NewDeal struct {
 }
 
 var ErrDealNotFound = errors.New("deal not found")
+var ErrDealPermission = errors.New("deal action not permitted")
 
 func normalizeUserID(id string) string {
 	id = strings.TrimSpace(id)
@@ -62,6 +65,7 @@ func normalizeUserID(id string) string {
 func ValidateNewDeal(in NewDeal) (NewDeal, error) {
 	in.BuyerID = normalizeUserID(in.BuyerID)
 	in.SellerID = normalizeUserID(in.SellerID)
+	in.CreatedBy = normalizeUserID(in.CreatedBy)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Terms = strings.TrimSpace(in.Terms)
 	in.Currency = strings.ToUpper(strings.TrimSpace(in.Currency))
@@ -72,11 +76,14 @@ func ValidateNewDeal(in NewDeal) (NewDeal, error) {
 	if in.BuyerID == in.SellerID {
 		return in, errors.New("buyer and seller must be different users")
 	}
+	if in.CreatedBy == "" || (in.CreatedBy != in.BuyerID && in.CreatedBy != in.SellerID) {
+		return in, errors.New("deal creator must be a participant")
+	}
 	if len(in.Title) < 3 || len(in.Title) > 120 {
 		return in, errors.New("title must be 3-120 characters")
 	}
-	if len(in.Terms) > 4000 {
-		return in, errors.New("terms are too long")
+	if len(in.Terms) < 3 || len(in.Terms) > 4000 {
+		return in, errors.New("terms must be 3-4000 characters")
 	}
 	if in.AmountMinor <= 0 {
 		return in, errors.New("amount must be positive")
@@ -122,4 +129,35 @@ func ValidateDealTransition(from, to DealStatus) error {
 		return fmt.Errorf("invalid deal transition %s -> %s", from, to)
 	}
 	return nil
+}
+
+func IsDealParticipant(d Deal, userID string) bool {
+	userID = normalizeUserID(userID)
+	return userID != "" && (userID == d.BuyerID || userID == d.SellerID)
+}
+
+func CanUserTransitionDeal(d Deal, actor string, to DealStatus) bool {
+	actor = normalizeUserID(actor)
+	if actor == "" || !IsDealParticipant(d, actor) || !CanTransitionDeal(d.Status, to) {
+		return false
+	}
+	if d.Status == to {
+		return true
+	}
+	switch to {
+	case DealAccepted:
+		return actor != d.CreatedBy
+	case DealInProgress:
+		return actor == d.SellerID
+	case DealDelivered:
+		return actor == d.SellerID
+	case DealCompleted:
+		return actor == d.BuyerID
+	case DealCancelled:
+		return d.Status != DealDelivered
+	case DealDisputed:
+		return true
+	default:
+		return false
+	}
 }
