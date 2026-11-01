@@ -1,0 +1,42 @@
+name: Wire T-Score Home
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/wire-tscore-home.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wire main tabs into ChatsActivity
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('android/app/src/main/java/co/tinode/tindroid/ChatsActivity.java')
+          s=p.read_text()
+          s=s.replace('    static final String FRAGMENT_CHATLIST = "contacts";\n', '    static final String FRAGMENT_CHATLIST = "contacts";\n    static final String FRAGMENT_DEALS = "deals";\n    static final String FRAGMENT_PEOPLE = "people";\n    static final String FRAGMENT_TRUST_PROFILE = "trust_profile";\n')
+          old='''        setSupportActionBar(findViewById(R.id.toolbar));\n\n        FragmentManager fm = getSupportFragmentManager();\n\n        if (fm.findFragmentByTag(FRAGMENT_CHATLIST) == null) {\n            Fragment fragment = new ChatsFragment();\n            fm.beginTransaction()\n                    .replace(R.id.contentFragment, fragment, FRAGMENT_CHATLIST)\n                    .setPrimaryNavigationFragment(fragment)\n                    .commit();\n        }\n\n        mMeTopic = Cache.getTinode().getOrCreateMeTopic();'''
+          new='''        setSupportActionBar(findViewById(R.id.toolbar));\n\n        findViewById(R.id.tabChats).setOnClickListener(v -> showMainTab(FRAGMENT_CHATLIST));\n        findViewById(R.id.tabDeals).setOnClickListener(v -> showMainTab(FRAGMENT_DEALS));\n        findViewById(R.id.tabPeople).setOnClickListener(v -> showMainTab(FRAGMENT_PEOPLE));\n        findViewById(R.id.tabProfile).setOnClickListener(v -> showMainTab(FRAGMENT_TRUST_PROFILE));\n\n        FragmentManager fm = getSupportFragmentManager();\n        if (fm.findFragmentById(R.id.contentFragment) == null) {\n            showMainTab(FRAGMENT_CHATLIST);\n        } else {\n            updateMainTabStyle(FRAGMENT_CHATLIST);\n        }\n\n        mMeTopic = Cache.getTinode().getOrCreateMeTopic();'''
+          if old not in s:
+              raise SystemExit('onCreate target not found')
+          s=s.replace(old,new)
+          marker='''    /**\n     * onResume restores subscription to 'me' topic and sets listener.\n     */'''
+          methods='''    private void showMainTab(String tag) {\n        Fragment fragment;\n        String title;\n        switch (tag) {\n            case FRAGMENT_DEALS:\n                fragment = new DealsFragment();\n                title = "Deals";\n                break;\n            case FRAGMENT_PEOPLE:\n                fragment = new PeopleFragment();\n                title = "People";\n                break;\n            case FRAGMENT_TRUST_PROFILE:\n                fragment = new TrustProfileFragment();\n                title = "My T-Score";\n                break;\n            case FRAGMENT_CHATLIST:\n            default:\n                fragment = new ChatsFragment();\n                title = "T-Score";\n                break;\n        }\n        FragmentTransaction trx = getSupportFragmentManager().beginTransaction()\n                .replace(R.id.contentFragment, fragment, tag);\n        if (FRAGMENT_CHATLIST.equals(tag)) {\n            trx.setPrimaryNavigationFragment(fragment);\n        }\n        trx.commitAllowingStateLoss();\n        if (getSupportActionBar() != null) getSupportActionBar().setTitle(title);\n        updateMainTabStyle(tag);\n    }\n\n    private void updateMainTabStyle(String selected) {\n        int bold = android.graphics.Typeface.BOLD;\n        int normal = android.graphics.Typeface.NORMAL;\n        ((android.widget.TextView) findViewById(R.id.tabChats)).setTypeface(null, FRAGMENT_CHATLIST.equals(selected) ? bold : normal);\n        ((android.widget.TextView) findViewById(R.id.tabDeals)).setTypeface(null, FRAGMENT_DEALS.equals(selected) ? bold : normal);\n        ((android.widget.TextView) findViewById(R.id.tabPeople)).setTypeface(null, FRAGMENT_PEOPLE.equals(selected) ? bold : normal);\n        ((android.widget.TextView) findViewById(R.id.tabProfile)).setTypeface(null, FRAGMENT_TRUST_PROFILE.equals(selected) ? bold : normal);\n    }\n\n'''+marker
+          if marker not in s:
+              raise SystemExit('method marker not found')
+          s=s.replace(marker, methods)
+          p.write_text(s)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/co/tinode/tindroid/ChatsActivity.java
+          git commit -m "Wire T-Score Chats Deals People Profile tabs"
+          git push origin HEAD:main
