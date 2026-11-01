@@ -36,6 +36,9 @@ public class ChatsActivity extends BaseActivity
         ImageViewFragment.AvatarCompletionHandler {
     static final String TAG_FRAGMENT_NAME = "fragment";
     static final String FRAGMENT_CHATLIST = "contacts";
+    static final String FRAGMENT_DEALS = "deals";
+    static final String FRAGMENT_PEOPLE = "people";
+    static final String FRAGMENT_TRUST_PROFILE = "trust_profile";
     static final String FRAGMENT_ACCOUNT_INFO = "account_info";
     static final String FRAGMENT_AVATAR_PREVIEW = "avatar_preview";
     static final String FRAGMENT_ACC_CREDENTIALS = "acc_credentials";
@@ -66,18 +69,61 @@ public class ChatsActivity extends BaseActivity
 
         setSupportActionBar(findViewById(R.id.toolbar));
 
-        FragmentManager fm = getSupportFragmentManager();
+        findViewById(R.id.tabChats).setOnClickListener(v -> showMainTab(FRAGMENT_CHATLIST));
+        findViewById(R.id.tabDeals).setOnClickListener(v -> showMainTab(FRAGMENT_DEALS));
+        findViewById(R.id.tabPeople).setOnClickListener(v -> showMainTab(FRAGMENT_PEOPLE));
+        findViewById(R.id.tabProfile).setOnClickListener(v -> showMainTab(FRAGMENT_TRUST_PROFILE));
 
-        if (fm.findFragmentByTag(FRAGMENT_CHATLIST) == null) {
-            Fragment fragment = new ChatsFragment();
-            fm.beginTransaction()
-                    .replace(R.id.contentFragment, fragment, FRAGMENT_CHATLIST)
-                    .setPrimaryNavigationFragment(fragment)
-                    .commit();
+        FragmentManager fm = getSupportFragmentManager();
+        if (fm.findFragmentById(R.id.contentFragment) == null) {
+            showMainTab(FRAGMENT_CHATLIST);
+        } else {
+            updateMainTabStyle(FRAGMENT_CHATLIST);
         }
 
         mMeTopic = Cache.getTinode().getOrCreateMeTopic();
         mMeTopicListener = new MeListener();
+    }
+
+    private void showMainTab(String tag) {
+        Fragment fragment;
+        String title;
+        switch (tag) {
+            case FRAGMENT_DEALS:
+                fragment = new DealsFragment();
+                title = "Deals";
+                break;
+            case FRAGMENT_PEOPLE:
+                fragment = new PeopleFragment();
+                title = "People";
+                break;
+            case FRAGMENT_TRUST_PROFILE:
+                fragment = new TrustProfileFragment();
+                title = "My T-Score";
+                break;
+            case FRAGMENT_CHATLIST:
+            default:
+                fragment = new ChatsFragment();
+                title = "T-Score";
+                break;
+        }
+        FragmentTransaction trx = getSupportFragmentManager().beginTransaction()
+                .replace(R.id.contentFragment, fragment, tag);
+        if (FRAGMENT_CHATLIST.equals(tag)) {
+            trx.setPrimaryNavigationFragment(fragment);
+        }
+        trx.commitAllowingStateLoss();
+        if (getSupportActionBar() != null) getSupportActionBar().setTitle(title);
+        updateMainTabStyle(tag);
+    }
+
+    private void updateMainTabStyle(String selected) {
+        int bold = android.graphics.Typeface.BOLD;
+        int normal = android.graphics.Typeface.NORMAL;
+        ((android.widget.TextView) findViewById(R.id.tabChats)).setTypeface(null, FRAGMENT_CHATLIST.equals(selected) ? bold : normal);
+        ((android.widget.TextView) findViewById(R.id.tabDeals)).setTypeface(null, FRAGMENT_DEALS.equals(selected) ? bold : normal);
+        ((android.widget.TextView) findViewById(R.id.tabPeople)).setTypeface(null, FRAGMENT_PEOPLE.equals(selected) ? bold : normal);
+        ((android.widget.TextView) findViewById(R.id.tabProfile)).setTypeface(null, FRAGMENT_TRUST_PROFILE.equals(selected) ? bold : normal);
     }
 
     /**
