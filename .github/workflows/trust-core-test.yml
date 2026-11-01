@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'server/tscore/**'
+      - 'server/tscoreapi/**'
+      - 'server/cmd/tscore-trust-api/**'
       - '.github/workflows/trust-core-test.yml'
 
 jobs:
@@ -19,5 +21,7 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      - name: Test trust core
-        run: go test ./tscore
+      - name: Test trust core and API
+        run: go test ./tscore ./tscoreapi
+      - name: Build trust API service
+        run: go build ./cmd/tscore-trust-api
