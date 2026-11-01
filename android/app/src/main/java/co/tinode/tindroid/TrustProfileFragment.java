@@ -17,28 +17,34 @@ import com.google.android.material.chip.Chip;
 
 public class TrustProfileFragment extends Fragment {
     private LinearLayout verificationList;
+    private String username;
+    private String email;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle state) {
         View root = inflater.inflate(R.layout.fragment_trust_profile, container, false);
         verificationList = root.findViewById(R.id.verificationList);
-        render();
+        renderLocalState();
+        loadLiveTrust();
         return root;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        if (verificationList != null) render();
+        if (verificationList != null) {
+            renderLocalState();
+            loadLiveTrust();
+        }
     }
 
-    private void render() {
+    private void renderLocalState() {
         if (verificationList == null || getView() == null) return;
         verificationList.removeAllViews();
 
-        String username = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        username = PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getString(LoginActivity.PREFS_LAST_LOGIN, "T-Score user");
-        String email = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        email = PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getString("tscore_signup_email", "");
 
         TextView profileName = requireView().findViewById(R.id.profileName);
@@ -49,30 +55,12 @@ public class TrustProfileFragment extends Fragment {
 
         if (profileName != null) profileName.setText(TextUtils.isEmpty(username) ? "T-Score User" : username);
         if (profileUsername != null) profileUsername.setText("@" + (TextUtils.isEmpty(username) ? "tscore-user" : username));
-        if (trustBadge != null) trustBadge.setText("NEW PROFILE");
-        if (trustScoreValue != null) trustScoreValue.setText("0 / " + TrustScoreModel.maximumScore());
-        if (trustScoreStatus != null) {
-            trustScoreStatus.setText("Your score will be calculated by T-Score servers after verification and deal activity.");
-        }
+        if (trustBadge != null) trustBadge.setText("LOADING");
+        if (trustScoreValue != null) trustScoreValue.setText("— / " + TrustScoreModel.maximumScore());
+        if (trustScoreStatus != null) trustScoreStatus.setText("Loading your verified T-Score from server…");
 
         for (TrustScoreModel.Item item : TrustScoreModel.items()) {
-            String status;
-            if ("Email".equals(item.title)) {
-                status = TextUtils.isEmpty(email) ? "Not added" : "Added · verification pending";
-            } else if ("Account age".equals(item.title)) {
-                status = "Builds automatically over time";
-            } else if ("Successful deals".equals(item.title)) {
-                status = "No completed deals yet";
-            } else if ("Reviews".equals(item.title)) {
-                status = "No reviews yet";
-            } else if ("Account standing".equals(item.title)) {
-                status = "Good standing builds automatically";
-            } else if ("Profile Photo".equals(item.title)) {
-                status = "Add and verify your real photo";
-            } else {
-                status = "Not verified";
-            }
-            addCheck(item.title, status, "+" + item.maxPoints + " points");
+            addCheck(item.title, localFallbackStatus(item.title), "+" + item.maxPoints + " points");
         }
 
         Button profile = requireView().findViewById(R.id.profileSettingsButton);
@@ -84,6 +72,82 @@ public class TrustProfileFragment extends Fragment {
                 }
             });
         }
+    }
+
+    private void loadLiveTrust() {
+        if (TextUtils.isEmpty(username) || "T-Score user".equals(username)) return;
+        final String requestedUser = username;
+        TrustApiClient.fetch(requestedUser, new TrustApiClient.Callback() {
+            @Override
+            public void onSuccess(TrustApiClient.Result result) {
+                if (!isAdded() || getView() == null || !requestedUser.equals(username)) return;
+                renderLiveResult(result);
+            }
+
+            @Override
+            public void onError(Exception error) {
+                if (!isAdded() || getView() == null || !requestedUser.equals(username)) return;
+                Chip badge = requireView().findViewById(R.id.profileTrustBadge);
+                TextView status = requireView().findViewById(R.id.trustScoreStatus);
+                TextView value = requireView().findViewById(R.id.trustScoreValue);
+                if (badge != null) badge.setText("OFFLINE");
+                if (value != null) value.setText("— / " + TrustScoreModel.maximumScore());
+                if (status != null) status.setText("Could not refresh T-Score. Your account and chats are unaffected.");
+            }
+        });
+    }
+
+    private void renderLiveResult(TrustApiClient.Result result) {
+        Chip badge = requireView().findViewById(R.id.profileTrustBadge);
+        TextView value = requireView().findViewById(R.id.trustScoreValue);
+        TextView status = requireView().findViewById(R.id.trustScoreStatus);
+        if (badge != null) badge.setText(result.badge.toUpperCase());
+        if (value != null) value.setText(result.score + " / " + TrustScoreModel.maximumScore());
+        if (status != null) status.setText(statusForScore(result.score, result.badge));
+
+        verificationList.removeAllViews();
+        for (TrustScoreModel.Item item : TrustScoreModel.items()) {
+            String key = keyForTitle(item.title);
+            int earned = result.breakdown.containsKey(key) ? result.breakdown.get(key) : 0;
+            boolean complete = earned > 0;
+            String itemStatus;
+            if (complete) {
+                itemStatus = "Verified / earned";
+            } else if ("Email".equals(item.title) && !TextUtils.isEmpty(email)) {
+                itemStatus = "Added · verification pending";
+            } else {
+                itemStatus = localFallbackStatus(item.title);
+            }
+            addCheck(item.title, itemStatus, earned + " / " + item.maxPoints + " points");
+        }
+    }
+
+    private String statusForScore(int score, String badge) {
+        if (score <= 0) return "Start verification and trusted deal activity to build your T-Score.";
+        return badge + " · score verified by T-Score server.";
+    }
+
+    private String localFallbackStatus(String title) {
+        if ("Email".equals(title)) return TextUtils.isEmpty(email) ? "Not added" : "Added · verification pending";
+        if ("Account age".equals(title)) return "Builds automatically over time";
+        if ("Successful deals".equals(title)) return "No completed deals yet";
+        if ("Reviews".equals(title)) return "No reviews yet";
+        if ("Account standing".equals(title)) return "Good standing builds automatically";
+        if ("Profile Photo".equals(title)) return "Add and verify your real photo";
+        return "Not verified";
+    }
+
+    private String keyForTitle(String title) {
+        if ("Profile Photo".equals(title)) return "profile_photo";
+        if ("Email".equals(title)) return "email";
+        if ("Phone number".equals(title)) return "phone";
+        if ("CNIC / National ID".equals(title)) return "identity";
+        if ("Address".equals(title)) return "address";
+        if ("Selfie / liveness".equals(title)) return "liveness";
+        if ("Account age".equals(title)) return "account_age";
+        if ("Successful deals".equals(title)) return "successful_deals";
+        if ("Reviews".equals(title)) return "reviews";
+        return "account_standing";
     }
 
     private void addCheck(String name, String status, String points) {
