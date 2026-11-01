@@ -1,81 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@color/ts_surface_card"
-    android:orientation="vertical"
-    android:padding="@dimen/ts_item_padding_horizontal"
-    android:layout_marginBottom="@dimen/ts_item_padding_vertical">
+    android:layout_marginBottom="10dp"
+    app:cardBackgroundColor="@color/ts_surface_card"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/ts_divider"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
 
-        <ImageView
-            android:id="@+id/verifyIcon"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:contentDescription="@string/verification"
-            android:src="@drawable/ic_circle"
-            app:tint="@color/ts_text_caption"/>
+        <FrameLayout
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:background="@color/ts_primary_light">
+
+            <ImageView
+                android:id="@+id/verifyIcon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:contentDescription="@string/verification"
+                android:src="@drawable/ic_circle"
+                app:tint="@color/ts_primary"/>
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="14dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
-            <LinearLayout
-                android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/verifyTitle"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/verifyTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="@style/TS.Text.Body"
-                    android:textColor="@color/ts_text_headline"
-                    android:textStyle="bold"
-                    tools:text="Profile Photo"/>
-
-                <TextView
-                    android:id="@+id/verifyPoints"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_vertical"
-                    android:layout_marginStart="4dp"
-                    android:textAppearance="@style/TS.Text.Caption"
-                    android:textColor="@color/ts_text_caption"
-                    tools:text="+5 points"/>
-            </LinearLayout>
+                android:textColor="@color/ts_text_headline"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                tools:text="Profile Photo"/>
 
             <TextView
                 android:id="@+id/verifyStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textAppearance="@style/TS.Text.Caption"
+                android:layout_marginTop="3dp"
                 android:textColor="@color/ts_text_subtitle"
+                android:textSize="12sp"
                 tools:text="Not verified"/>
         </LinearLayout>
 
-        <ImageView
-            android:id="@+id/verifyChevron"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:contentDescription="@string/next"
-            android:src="@drawable/ic_chevron_up"
-            android:rotation="90"
-            app:tint="@color/ts_text_caption"/>
-    </LinearLayout>
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:orientation="vertical">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginTop="@dimen/ts_item_padding_vertical"
-        android:background="@color/ts_divider_light"/>
-</LinearLayout>
+            <TextView
+                android:id="@+id/verifyPoints"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/ts_primary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                tools:text="+5 points"/>
+
+            <ImageView
+                android:id="@+id/verifyChevron"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="end"
+                android:layout_marginTop="4dp"
+                android:contentDescription="@string/next"
+                android:rotation="90"
+                android:src="@drawable/ic_chevron_up"
+                app:tint="@color/ts_text_caption"/>
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
