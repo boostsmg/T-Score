@@ -1,0 +1,19 @@
+[Unit]
+Description=T-Score Trust API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/t-score/trust-api.env
+ExecStart=/opt/t-score/bin/tscore-trust-api
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+WorkingDirectory=/opt/t-score
+
+[Install]
+WantedBy=multi-user.target
