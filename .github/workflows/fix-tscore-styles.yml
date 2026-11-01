@@ -1,0 +1,39 @@
+name: Fix T-Score Android styles
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-tscore-styles.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix style inheritance and theme attribute
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/res/values/styles.xml')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('<item name="colorBackground">', '<item name="android:colorBackground">')
+          names = [
+              'TS.Text.Headline','TS.Text.Section','TS.Text.Body','TS.Text.Subtitle','TS.Text.Caption',
+              'TS.BottomNav.Label.Active','TS.BottomNav.Label.Inactive','TS.Chip.Status'
+          ]
+          for name in names:
+              s = s.replace(f'<style name="{name}">', f'<style name="{name}" parent="">')
+          p.write_text(s, encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android/app/src/main/res/values/styles.xml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Fix T-Score style resource linking'
+            git push
+          fi
