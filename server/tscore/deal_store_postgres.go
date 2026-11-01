@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS tscore_deals (
     id TEXT PRIMARY KEY,
     buyer_id TEXT NOT NULL,
     seller_id TEXT NOT NULL,
+    created_by TEXT NOT NULL,
     title TEXT NOT NULL,
     terms TEXT NOT NULL DEFAULT '',
     amount_minor BIGINT NOT NULL CHECK (amount_minor > 0),
@@ -45,19 +46,19 @@ func (s *DealStore) Create(ctx context.Context, input NewDeal) (Deal, error) {
 	if err != nil { return Deal{}, err }
 	var d Deal
 	err = s.pool.QueryRow(ctx, `
-INSERT INTO tscore_deals (id,buyer_id,seller_id,title,terms,amount_minor,currency,status)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-RETURNING id,buyer_id,seller_id,title,terms,amount_minor,currency,status,created_at,updated_at,accepted_at,delivered_at,completed_at`,
-		id,input.BuyerID,input.SellerID,input.Title,input.Terms,input.AmountMinor,input.Currency,DealProposed,
-	).Scan(&d.ID,&d.BuyerID,&d.SellerID,&d.Title,&d.Terms,&d.AmountMinor,&d.Currency,&d.Status,&d.CreatedAt,&d.UpdatedAt,&d.AcceptedAt,&d.DeliveredAt,&d.CompletedAt)
+INSERT INTO tscore_deals (id,buyer_id,seller_id,created_by,title,terms,amount_minor,currency,status)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+RETURNING id,buyer_id,seller_id,created_by,title,terms,amount_minor,currency,status,created_at,updated_at,accepted_at,delivered_at,completed_at`,
+		id,input.BuyerID,input.SellerID,input.CreatedBy,input.Title,input.Terms,input.AmountMinor,input.Currency,DealProposed,
+	).Scan(&d.ID,&d.BuyerID,&d.SellerID,&d.CreatedBy,&d.Title,&d.Terms,&d.AmountMinor,&d.Currency,&d.Status,&d.CreatedAt,&d.UpdatedAt,&d.AcceptedAt,&d.DeliveredAt,&d.CompletedAt)
 	return d, err
 }
 
 func (s *DealStore) Get(ctx context.Context, id string) (Deal, error) {
 	var d Deal
 	err := s.pool.QueryRow(ctx, `
-SELECT id,buyer_id,seller_id,title,terms,amount_minor,currency,status,created_at,updated_at,accepted_at,delivered_at,completed_at
-FROM tscore_deals WHERE id=$1`, id).Scan(&d.ID,&d.BuyerID,&d.SellerID,&d.Title,&d.Terms,&d.AmountMinor,&d.Currency,&d.Status,&d.CreatedAt,&d.UpdatedAt,&d.AcceptedAt,&d.DeliveredAt,&d.CompletedAt)
+SELECT id,buyer_id,seller_id,created_by,title,terms,amount_minor,currency,status,created_at,updated_at,accepted_at,delivered_at,completed_at
+FROM tscore_deals WHERE id=$1`, id).Scan(&d.ID,&d.BuyerID,&d.SellerID,&d.CreatedBy,&d.Title,&d.Terms,&d.AmountMinor,&d.Currency,&d.Status,&d.CreatedAt,&d.UpdatedAt,&d.AcceptedAt,&d.DeliveredAt,&d.CompletedAt)
 	if errors.Is(err, pgx.ErrNoRows) { return Deal{}, ErrDealNotFound }
 	return d, err
 }
@@ -67,14 +68,14 @@ func (s *DealStore) ListForUser(ctx context.Context, userID string, limit int) (
 	if userID == "" { return nil, errors.New("valid user ID required") }
 	if limit <= 0 || limit > 200 { limit = 100 }
 	rows, err := s.pool.Query(ctx, `
-SELECT id,buyer_id,seller_id,title,terms,amount_minor,currency,status,created_at,updated_at,accepted_at,delivered_at,completed_at
+SELECT id,buyer_id,seller_id,created_by,title,terms,amount_minor,currency,status,created_at,updated_at,accepted_at,delivered_at,completed_at
 FROM tscore_deals WHERE buyer_id=$1 OR seller_id=$1 ORDER BY created_at DESC LIMIT $2`, userID, limit)
 	if err != nil { return nil, err }
 	defer rows.Close()
 	out := make([]Deal,0)
 	for rows.Next() {
 		var d Deal
-		if err := rows.Scan(&d.ID,&d.BuyerID,&d.SellerID,&d.Title,&d.Terms,&d.AmountMinor,&d.Currency,&d.Status,&d.CreatedAt,&d.UpdatedAt,&d.AcceptedAt,&d.DeliveredAt,&d.CompletedAt); err != nil { return nil, err }
+		if err := rows.Scan(&d.ID,&d.BuyerID,&d.SellerID,&d.CreatedBy,&d.Title,&d.Terms,&d.AmountMinor,&d.Currency,&d.Status,&d.CreatedAt,&d.UpdatedAt,&d.AcceptedAt,&d.DeliveredAt,&d.CompletedAt); err != nil { return nil, err }
 		out = append(out,d)
 	}
 	return out, rows.Err()
