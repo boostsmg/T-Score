@@ -21,7 +21,7 @@ func (m *memoryStore) Create(_ context.Context, in tscore.NewDeal) (tscore.Deal,
 }
 func (m *memoryStore) Get(_ context.Context,id string)(tscore.Deal,error){ d,ok:=m.deals[id]; if !ok{return tscore.Deal{},tscore.ErrDealNotFound}; return d,nil }
 func (m *memoryStore) ListForUser(_ context.Context,u string,_ int)([]tscore.Deal,error){ out:=[]tscore.Deal{}; for _,d:=range m.deals{if d.BuyerID==u||d.SellerID==u{out=append(out,d)}}; return out,nil }
-func (m *memoryStore) Transition(_ context.Context,id string,to tscore.DealStatus)(tscore.Deal,error){ d,ok:=m.deals[id]; if !ok{return tscore.Deal{},tscore.ErrDealNotFound}; if err:=tscore.ValidateDealTransition(d.Status,to);err!=nil{return tscore.Deal{},err}; d.Status=to;m.deals[id]=d;return d,nil }
+func (m *memoryStore) Transition(_ context.Context,id string,to tscore.DealStatus,_ string)(tscore.Deal,error){ d,ok:=m.deals[id]; if !ok{return tscore.Deal{},tscore.ErrDealNotFound}; if err:=tscore.ValidateDealTransition(d.Status,to);err!=nil{return tscore.Deal{},err}; d.Status=to;m.deals[id]=d;return d,nil }
 
 type fakeVerifier struct { tokens map[string]string }
 func (f fakeVerifier) VerifyBase64(token string)(string,error){ if u,ok:=f.tokens[token];ok{return u,nil}; return "",errors.New("bad token") }
