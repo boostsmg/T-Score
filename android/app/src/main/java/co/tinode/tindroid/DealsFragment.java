@@ -14,6 +14,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -71,7 +72,7 @@ public class DealsFragment extends Fragment {
         boolean empty = drafts.isEmpty();
         if (dealsList != null) dealsList.setVisibility(empty ? View.GONE : View.VISIBLE);
         if (emptyState != null) emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
-        if (chipActive != null) chipActive.setText(drafts.size() + " Draft");
+        if (chipActive != null) chipActive.setText(drafts.size() + (drafts.size() == 1 ? " Draft" : " Drafts"));
         if (chipCompleted != null) chipCompleted.setText("0 Completed");
         if (chipDisputed != null) chipDisputed.setText("0 Disputed");
     }
@@ -93,6 +94,8 @@ public class DealsFragment extends Fragment {
 
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String other = cleanUsername(counterpart.getText().toString());
+            String self = cleanUsername(PreferenceManager.getDefaultSharedPreferences(requireContext())
+                    .getString(LoginActivity.PREFS_LAST_LOGIN, ""));
             String dealTitle = title.getText().toString().trim();
             String dealAmount = amount.getText().toString().trim();
             String dealCurrency = currency.getText().toString().trim().toUpperCase(Locale.US);
@@ -101,6 +104,10 @@ public class DealsFragment extends Fragment {
 
             if (TextUtils.isEmpty(other)) {
                 counterpart.setError("Username required");
+                return;
+            }
+            if (!TextUtils.isEmpty(self) && self.equals(other)) {
+                counterpart.setError("Choose another user");
                 return;
             }
             if (dealTitle.length() < 3) {
@@ -121,6 +128,10 @@ public class DealsFragment extends Fragment {
                 currency.setError("Use 3-letter currency, e.g. PKR");
                 return;
             }
+            if (dealTerms.length() < 3) {
+                terms.setError("Add basic deal terms");
+                return;
+            }
 
             DealDraftStore.add(requireContext(), DealDraft.create(other, role, dealTitle, dealAmount, dealCurrency, dealTerms));
             dialog.dismiss();
@@ -134,6 +145,20 @@ public class DealsFragment extends Fragment {
         String out = value == null ? "" : value.trim();
         while (out.startsWith("@")) out = out.substring(1);
         return out.toLowerCase(Locale.US);
+    }
+
+    private void showDetails(DealDraft draft) {
+        String roleText = "BUYER".equals(draft.role) ? "You are the buyer" : "You are the seller";
+        String body = roleText + "\nOther user: @" + draft.counterpart +
+                "\nAmount: " + draft.currency + " " + draft.amount +
+                "\n\nTerms:\n" + draft.terms +
+                "\n\nStatus: Draft • not sent yet";
+        new AlertDialog.Builder(requireContext())
+                .setTitle(draft.title)
+                .setMessage(body)
+                .setNegativeButton("Close", null)
+                .setPositiveButton("Delete Draft", (d, which) -> confirmDelete(draft))
+                .show();
     }
 
     private void confirmDelete(DealDraft draft) {
@@ -170,6 +195,7 @@ public class DealsFragment extends Fragment {
             holder.counterpart.setText("@" + d.counterpart + " • " + ("BUYER".equals(d.role) ? "You buy" : "You sell"));
             holder.amount.setText(d.currency + " " + d.amount);
             holder.status.setText("Draft");
+            holder.itemView.setOnClickListener(v -> showDetails(d));
             holder.itemView.setOnLongClickListener(v -> {
                 confirmDelete(d);
                 return true;
