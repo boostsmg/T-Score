@@ -72,7 +72,7 @@
                 android:checkable="false"
                 android:text="New"
                 app:chipBackgroundColor="@color/ts_success_bg"
-                app:chipTextColor="@color/ts_success"/>
+                android:textColor="@color/ts_success"/>
         </LinearLayout>
 
         <Button

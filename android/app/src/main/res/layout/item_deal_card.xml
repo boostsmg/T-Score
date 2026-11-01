@@ -96,7 +96,7 @@
                 android:checkable="false"
                 android:text="Active"
                 app:chipBackgroundColor="@color/ts_info_bg"
-                app:chipTextColor="@color/ts_info"/>
+                android:textColor="@color/ts_info"/>
         </LinearLayout>
     </LinearLayout>
 </androidx.cardview.widget.CardView>

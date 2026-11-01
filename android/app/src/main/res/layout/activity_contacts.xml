@@ -37,7 +37,6 @@
         app:itemIconTint="@color/ts_bottom_nav_item"
         app:itemTextColor="@color/ts_bottom_nav_item"
         app:itemRippleColor="@color/ts_primary_soft"
-        app:itemActiveIndicatorColor="@color/ts_primary_light"
-        app:itemActiveIndicatorEnabled="true"/>
+        />
 
 </LinearLayout>

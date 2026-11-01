@@ -47,7 +47,7 @@
                 android:checkable="false"
                 android:text="Active"
                 app:chipBackgroundColor="@color/ts_info_bg"
-                app:chipTextColor="@color/ts_info"
+                android:textColor="@color/ts_info"
                 app:chipStrokeColor="@color/ts_info"
                 app:chipStrokeWidth="1dp"/>
 
@@ -62,7 +62,7 @@
                 android:checkable="false"
                 android:text="Completed"
                 app:chipBackgroundColor="@color/ts_success_bg"
-                app:chipTextColor="@color/ts_success"
+                android:textColor="@color/ts_success"
                 app:chipStrokeColor="@color/ts_success"
                 app:chipStrokeWidth="1dp"/>
 
@@ -76,7 +76,7 @@
                 android:checkable="false"
                 android:text="Disputed"
                 app:chipBackgroundColor="@color/ts_warning_bg"
-                app:chipTextColor="@color/ts_warning"
+                android:textColor="@color/ts_warning"
                 app:chipStrokeColor="@color/ts_warning"
                 app:chipStrokeWidth="1dp"/>
         </LinearLayout>

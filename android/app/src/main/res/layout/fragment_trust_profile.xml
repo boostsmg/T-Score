@@ -77,7 +77,7 @@
                         android:textStyle="bold"
                         app:chipBackgroundColor="@color/ts_primary_light"
                         app:chipMinHeight="30dp"
-                        app:chipTextColor="@color/ts_primary"/>
+                        android:textColor="@color/ts_primary"/>
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
