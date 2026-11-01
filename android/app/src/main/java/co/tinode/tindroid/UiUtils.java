@@ -369,11 +369,20 @@ public class UiUtils {
             activity.runOnUiThread(() -> button.setEnabled(true));
         }
 
-        Account acc = Utils.getSavedAccount(AccountManager.get(activity), uid);
-        if (acc != null) {
-            requestImmediateContactsSync(acc);
-            ContentResolver.setSyncAutomatically(acc, Utils.SYNC_AUTHORITY, true);
-            TindroidApp.startWatchingContacts(activity, acc);
+        // Android account/contacts integration is optional for T-Score.
+        // Never let legacy sync/provider failures crash a successful login or signup.
+        try {
+            Account acc = Utils.getSavedAccount(AccountManager.get(activity), uid);
+            if (acc != null) {
+                try { requestImmediateContactsSync(acc); }
+                catch (Exception e) { Log.w(TAG, "Contacts sync unavailable", e); }
+                try { ContentResolver.setSyncAutomatically(acc, Utils.SYNC_AUTHORITY, true); }
+                catch (Exception e) { Log.w(TAG, "Unable to enable contacts sync", e); }
+                try { TindroidApp.startWatchingContacts(activity, acc); }
+                catch (Exception e) { Log.w(TAG, "Contacts observer unavailable", e); }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Android account integration unavailable; continuing without it", e);
         }
 
         Intent intent = new Intent(activity, ChatsActivity.class);
@@ -443,8 +452,12 @@ public class UiUtils {
         }
         am.notifyAccountAuthenticated(savedAccount);
         if (!TextUtils.isEmpty(token)) {
-            am.setAuthToken(savedAccount, Utils.TOKEN_TYPE, token);
-            am.setUserData(savedAccount, Utils.TOKEN_EXPIRATION_TIME, String.valueOf(tokenExpires.getTime()));
+            try { am.setAuthToken(savedAccount, Utils.TOKEN_TYPE, token); }
+            catch (Exception e) { Log.w(TAG, "Unable to save auth token", e); }
+            if (tokenExpires != null) {
+                try { am.setUserData(savedAccount, Utils.TOKEN_EXPIRATION_TIME, String.valueOf(tokenExpires.getTime())); }
+                catch (Exception e) { Log.w(TAG, "Unable to save token expiration", e); }
+            }
         }
     }
 

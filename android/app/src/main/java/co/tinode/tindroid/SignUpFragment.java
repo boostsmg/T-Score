@@ -113,17 +113,28 @@ public class SignUpFragment extends Fragment implements View.OnClickListener, Me
                 .thenApply(new PromisedReply.SuccessListener<>() {
                     @Override
                     public PromisedReply<ServerMessage> onSuccess(ServerMessage msg) {
-                        UiUtils.updateAndroidAccount(parent, tinode.getMyId(),
-                                AuthScheme.basicInstance(login, password).toString(),
-                                tinode.getAuthToken(), tinode.getAuthTokenExpiration());
+                        try {
+                            UiUtils.updateAndroidAccount(parent, tinode.getMyId(),
+                                    AuthScheme.basicInstance(login, password).toString(),
+                                    tinode.getAuthToken(), tinode.getAuthTokenExpiration());
+                        } catch (Exception e) {
+                            Log.w(TAG, "Android account integration failed; continuing signup", e);
+                        }
                         parent.runOnUiThread(() -> {
-                            if (msg != null && msg.ctrl != null && msg.ctrl.code >= 300 &&
-                                    msg.ctrl.text != null && msg.ctrl.text.contains("validate credentials")) {
+                            try {
+                                if (msg != null && msg.ctrl != null && msg.ctrl.code >= 300 &&
+                                        msg.ctrl.text != null && msg.ctrl.text.contains("validate credentials")) {
+                                    signUp.setEnabled(true);
+                                    parent.showFragment(LoginActivity.FRAGMENT_CREDENTIALS, null);
+                                } else {
+                                    tinode.setAutoLoginToken(tinode.getAuthToken());
+                                    UiUtils.onLoginSuccess(parent, signUp, tinode.getMyId());
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Post-signup navigation failed", e);
                                 signUp.setEnabled(true);
-                                parent.showFragment(LoginActivity.FRAGMENT_CREDENTIALS, null);
-                            } else {
-                                tinode.setAutoLoginToken(tinode.getAuthToken());
-                                UiUtils.onLoginSuccess(parent, signUp, tinode.getMyId());
+                                Toast.makeText(parent, "Account created. Please sign in.", Toast.LENGTH_LONG).show();
+                                parent.showFragment(LoginActivity.FRAGMENT_LOGIN, null);
                             }
                         });
                         return null;
