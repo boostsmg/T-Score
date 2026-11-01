@@ -33,13 +33,14 @@ public class TrustProfileFragment extends Fragment {
     }
 
     private void render() {
-        if (verificationList == null) return;
+        if (verificationList == null || getView() == null) return;
         verificationList.removeAllViews();
 
         String username = PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getString(LoginActivity.PREFS_LAST_LOGIN, "T-Score user");
+        String email = PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .getString("tscore_signup_email", "");
 
-        // Header values
         TextView profileName = requireView().findViewById(R.id.profileName);
         TextView profileUsername = requireView().findViewById(R.id.profileUsername);
         Chip trustBadge = requireView().findViewById(R.id.profileTrustBadge);
@@ -48,25 +49,23 @@ public class TrustProfileFragment extends Fragment {
 
         if (profileName != null) profileName.setText(TextUtils.isEmpty(username) ? "T-Score User" : username);
         if (profileUsername != null) profileUsername.setText("@" + (TextUtils.isEmpty(username) ? "tscore-user" : username));
-        if (trustBadge != null) trustBadge.setText("New");
+        if (trustBadge != null) trustBadge.setText("NEW PROFILE");
         if (trustScoreValue != null) trustScoreValue.setText("0 / 100");
-        if (trustScoreStatus != null) trustScoreStatus.setText("New — Start building trust with verified checks");
+        if (trustScoreStatus != null) trustScoreStatus.setText("Start with identity and contact verification to build a trusted deal profile.");
 
-        // Verification items (placeholder data; backend integration preserved)
-        addCheck("Profile Photo", "Not verified", "+5 points");
-        addCheck("Email", "Not added", "+5 points");
+        addCheck("Profile photo", "Add and verify your real photo", "+5 points");
+        addCheck("Email", TextUtils.isEmpty(email) ? "Not added" : "Added · verification pending", "+5 points");
         addCheck("Phone number", "Not verified", "+10 points");
         addCheck("CNIC / National ID", "Not verified", "+20 points");
         addCheck("Address", "Not verified", "+15 points");
         addCheck("Selfie / liveness", "Not verified", "+10 points");
-        addCheck("Account age", "Starts building automatically", "Up to +5 points");
-        addCheck("Successful deals", "No completed deals", "Up to +15 points");
+        addCheck("Account age", "Builds automatically over time", "Up to +5 points");
+        addCheck("Successful deals", "No completed deals yet", "Up to +15 points");
         addCheck("Reviews", "No reviews yet", "+10 points");
 
-        // CTA button preserves existing navigation target
         Button profile = requireView().findViewById(R.id.profileSettingsButton);
         if (profile != null) {
-            profile.setText("Profile & Verification Settings");
+            profile.setText("Continue verification");
             profile.setOnClickListener(v -> {
                 if (getActivity() instanceof ChatsActivity) {
                     ((ChatsActivity) getActivity()).showFragment(ChatsActivity.FRAGMENT_ACCOUNT_INFO, null);
