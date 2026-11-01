@@ -6,6 +6,7 @@ on:
     paths:
       - 'server/tscore/**'
       - 'server/tscoreapi/**'
+      - 'server/tscoredealapi/**'
       - 'server/cmd/tscore-trust-api/**'
       - '.github/workflows/trust-core-test.yml'
   workflow_dispatch:
@@ -22,9 +23,9 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      - name: Test trust core and API
-        run: go test ./tscore ./tscoreapi
-      - name: Build production Linux trust API
+      - name: Test trust and deals core/API
+        run: go test ./tscore ./tscoreapi ./tscoredealapi
+      - name: Build production Linux trust/deals API
         run: |
           mkdir -p ../dist-trust-api
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../dist-trust-api/tscore-trust-api ./cmd/tscore-trust-api
