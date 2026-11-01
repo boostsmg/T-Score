@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="@dimen/ts_item_padding_vertical"
@@ -14,16 +15,13 @@
         android:orientation="horizontal"
         android:padding="@dimen/ts_item_padding_horizontal">
 
-        <!-- Avatar -->
         <ImageView
             android:id="@+id/personAvatar"
             android:layout_width="@dimen/ts_avatar_large"
             android:layout_height="@dimen/ts_avatar_large"
             android:contentDescription="@string/avatar"
-            android:src="@drawable/ic_person_circle"
-            app:shapeAppearanceOverlay="@style/roundImageView"/>
+            android:src="@drawable/ic_person_circle"/>
 
-        <!-- Info -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -49,11 +47,11 @@
                     android:id="@+id/personVerified"
                     android:layout_width="16dp"
                     android:layout_height="16dp"
-                    android:layout_marginStart="4dp"
                     android:layout_gravity="center_vertical"
+                    android:layout_marginStart="4dp"
                     android:contentDescription="@string/verified"
                     android:src="@drawable/ic_check_circle"
-                android:tint="@color/ts_success"/>
+                    android:tint="@color/ts_success"/>
             </LinearLayout>
 
             <TextView
@@ -65,25 +63,18 @@
                 android:textColor="@color/ts_text_subtitle"
                 tools:text="@johndoe"/>
 
-            <LinearLayout
-                android:layout_width="match_parent"
+            <com.google.android.material.chip.Chip
+                android:id="@+id/personTrustChip"
+                style="@style/TS.Chip.Status"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/personTrustChip"
-                    style="@style/TS.Chip.Status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checkable="false"
-                    android:text="New"
-                    app:chipBackgroundColor="@color/ts_success_bg"
-                    app:chipTextColor="@color/ts_success"/>
-            </LinearLayout>
+                android:checkable="false"
+                android:text="New"
+                app:chipBackgroundColor="@color/ts_success_bg"
+                app:chipTextColor="@color/ts_success"/>
         </LinearLayout>
 
-        <!-- Action button -->
         <Button
             android:id="@+id/personChatButton"
             style="@style/TS.Button.Outline"
