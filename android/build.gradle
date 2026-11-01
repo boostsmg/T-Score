@@ -21,8 +21,10 @@ buildscript {
 }
 
 ext {
-    version_code = gitVersionCode()
-    version_name = gitVersionName()
+    version_code = project.hasProperty('TSCORE_VERSION_CODE') ?
+            project.property('TSCORE_VERSION_CODE').toString().toInteger() : gitVersionCode()
+    version_name = project.hasProperty('TSCORE_VERSION_NAME') ?
+            project.property('TSCORE_VERSION_NAME').toString() : gitVersionName()
 }
 
 allprojects {
