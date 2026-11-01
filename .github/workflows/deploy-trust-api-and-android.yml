@@ -1,0 +1,272 @@
+name: Deploy T-Score Trust API and Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-trust-api-and-android.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, boostoraa-production]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download cloud-built Trust API
+        uses: actions/download-artifact@v4
+        with:
+          name: T-Score-Trust-API-Linux-amd64
+          path: trust-api-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 41324962670
+
+      - name: Download cloud-built Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: T-Score-Android-APK
+          path: android-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 41324940961
+
+      - name: Pre-deploy production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for s in tenant-platform.service t-score.service nginx postgresql; do
+            state="$(systemctl is-active "$s" 2>/dev/null || true)"
+            echo "$s=$state"
+            [ "$state" = active ] || { echo "Refusing deploy because $s is not active"; exit 1; }
+          done
+          for u in https://boostoraa.com https://boostsmg.com https://chat.socialrise.garden; do
+            code="$(curl -L --max-time 15 -sS -o /dev/null -w '%{http_code}' "$u" || true)"
+            echo "$u=$code"
+            case "$code" in 2*|3*) ;; *) echo "Refusing deploy: unhealthy $u"; exit 1;; esac
+          done
+
+      - name: Install Trust API with isolated database role/schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN_SRC="$(find trust-api-artifact -type f -name 'tscore-trust-api' -print -quit)"
+          [ -n "$BIN_SRC" ] && [ -f "$BIN_SRC" ] || { echo 'Trust API binary missing'; exit 1; }
+
+          sudo install -d -m 0755 /opt/t-score/bin /etc/t-score
+          sudo install -m 0755 "$BIN_SRC" /opt/t-score/bin/tscore-trust-api
+
+          sudo -u postgres psql -Atqc "select 1 from pg_database where datname='tscore'" | grep -qx 1 || {
+            echo 'Existing tscore database not found; refusing to create a replacement database.'
+            exit 1
+          }
+
+          DB_PASS="$(openssl rand -hex 24)"
+          ADMIN_KEY="$(openssl rand -hex 32)"
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -v dbpass="$DB_PASS" <<'SQL'
+          DO $do$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tscore_trust_api') THEN
+              CREATE ROLE tscore_trust_api LOGIN;
+            END IF;
+          END
+          $do$;
+          SELECT format('ALTER ROLE tscore_trust_api PASSWORD %L', :'dbpass') \gexec
+          GRANT CONNECT ON DATABASE tscore TO tscore_trust_api;
+          SQL
+
+          sudo -u postgres psql -d tscore -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA IF NOT EXISTS tscore_trust AUTHORIZATION tscore_trust_api;
+          ALTER SCHEMA tscore_trust OWNER TO tscore_trust_api;
+          SQL
+
+          sudo bash -c "umask 077; cat > /etc/t-score/trust-api.env" <<EOF
+          TSCORE_TRUST_DATABASE_URL=postgres://tscore_trust_api:${DB_PASS}@127.0.0.1:5432/tscore?sslmode=disable&search_path=tscore_trust
+          TSCORE_TRUST_ADMIN_KEY=${ADMIN_KEY}
+          TSCORE_TRUST_ADDR=127.0.0.1:6061
+          EOF
+          sudo chmod 600 /etc/t-score/trust-api.env
+
+          RUN_USER=chatgpt-ops
+          id "$RUN_USER" >/dev/null 2>&1 || RUN_USER=root
+          sudo tee /etc/systemd/system/tscore-trust-api.service >/dev/null <<EOF
+          [Unit]
+          Description=T-Score Trust API
+          After=network.target postgresql.service
+          Requires=postgresql.service
+
+          [Service]
+          Type=simple
+          User=${RUN_USER}
+          EnvironmentFile=/etc/t-score/trust-api.env
+          ExecStart=/opt/t-score/bin/tscore-trust-api
+          Restart=on-failure
+          RestartSec=3
+          NoNewPrivileges=true
+          PrivateTmp=true
+          ProtectHome=true
+          ProtectSystem=full
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now tscore-trust-api.service
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:6061/healthz >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:6061/healthz
+
+      - name: Add nginx Trust API route safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="$(sudo grep -RIlE 'server_name[[:space:]]+chat\.socialrise\.garden([[:space:];]|$)' /etc/nginx/sites-enabled /etc/nginx/sites-available /etc/nginx/conf.d 2>/dev/null | head -n1 || true)"
+          [ -n "$TARGET" ] || { echo 'chat.socialrise.garden nginx config not found'; exit 1; }
+          echo "Using nginx config: $TARGET"
+          TS="$(date -u +%Y%m%dT%H%M%SZ)"
+          sudo cp -a "$TARGET" "${TARGET}.bak-${TS}"
+          TMP="$(mktemp)"
+          sudo cp "$TARGET" "$TMP"
+          sudo chown "$(id -u):$(id -g)" "$TMP"
+
+          python3 - "$TMP" <<'PY'
+          import sys
+          from pathlib import Path
+
+          p = Path(sys.argv[1])
+          text = p.read_text()
+          if 'location /tscore-api/' in text:
+              print('Trust API nginx route already present')
+              raise SystemExit(0)
+
+          lines = text.splitlines(True)
+          candidates = []
+          depth = 0
+          start = None
+          for i, line in enumerate(lines):
+              stripped = line.strip()
+              if start is None and stripped.startswith('server') and '{' in stripped:
+                  start = i
+                  depth = line.count('{') - line.count('}')
+                  continue
+              if start is not None:
+                  depth += line.count('{') - line.count('}')
+                  if depth == 0:
+                      block = ''.join(lines[start:i+1])
+                      if 'server_name' in block and 'chat.socialrise.garden' in block and ('listen 443' in block or 'ssl_certificate' in block):
+                          candidates.append((start, i))
+                      start = None
+
+          if len(candidates) != 1:
+              raise SystemExit(f'Expected exactly one HTTPS chat.socialrise.garden server block, found {len(candidates)}')
+
+          s, e = candidates[0]
+          indent = '    '
+          location = (
+              f"{indent}location /tscore-api/ {{\n"
+              f"{indent}    proxy_pass http://127.0.0.1:6061/;\n"
+              f"{indent}    proxy_http_version 1.1;\n"
+              f"{indent}    proxy_set_header Host $host;\n"
+              f"{indent}    proxy_set_header X-Real-IP $remote_addr;\n"
+              f"{indent}    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+              f"{indent}    proxy_set_header X-Forwarded-Proto $scheme;\n"
+              f"{indent}}}\n"
+          )
+          lines.insert(e, location)
+          p.write_text(''.join(lines))
+          PY
+
+          sudo cp "$TMP" "$TARGET"
+          rm -f "$TMP"
+          sudo nginx -t
+          sudo systemctl reload nginx
+          curl -fsS https://chat.socialrise.garden/tscore-api/healthz
+          curl -fsS https://chat.socialrise.garden/tscore-api/v1/trust/test-user
+
+      - name: Sign and publish Android 1.0.49 with stable T-Score key
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_SRC="$(find android-artifact -type f -name 'T-Score.apk' -print -quit)"
+          [ -n "$APK_SRC" ] && [ -f "$APK_SRC" ] || { echo 'Android APK artifact missing'; exit 1; }
+          APKSIGNER=/opt/android-sdk/build-tools/36.0.0/apksigner
+          AAPT=/opt/android-sdk/build-tools/36.0.0/aapt
+          [ -x "$APKSIGNER" ] && [ -x "$AAPT" ] || { echo 'Android signing tools missing on VPS'; exit 1; }
+          sudo test -f /opt/t-score-signing/tscore-update.p12
+          sudo test -f /opt/t-score-signing/.keystore_password
+
+          TMPDIR="$(mktemp -d)"
+          trap 'rm -rf "$TMPDIR"' EXIT
+          cp "$APK_SRC" "$TMPDIR/unsigned.apk"
+          sudo "$APKSIGNER" sign \
+            --ks /opt/t-score-signing/tscore-update.p12 \
+            --ks-key-alias tscore-update \
+            --ks-pass file:/opt/t-score-signing/.keystore_password \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$TMPDIR/T-Score.apk" \
+            "$TMPDIR/unsigned.apk"
+          sudo chown "$(id -u):$(id -g)" "$TMPDIR/T-Score.apk"
+          "$APKSIGNER" verify --verbose --print-certs "$TMPDIR/T-Score.apk" >/tmp/tscore-apksigner-verify.txt
+          grep -q 'CN=T-Score' /tmp/tscore-apksigner-verify.txt
+
+          BADGING="$($AAPT dump badging "$TMPDIR/T-Score.apk" | head -n1)"
+          VERSION_CODE="$(printf '%s\n' "$BADGING" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")"
+          VERSION_NAME="$(printf '%s\n' "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
+          [ -n "$VERSION_CODE" ] && [ -n "$VERSION_NAME" ]
+          SHA="$(sha256sum "$TMPDIR/T-Score.apk" | awk '{print $1}')"
+
+          sudo install -d -m 0755 /var/www/t-score-downloads
+          sudo install -m 0644 "$TMPDIR/T-Score.apk" /var/www/t-score-downloads/T-Score.apk.new
+          sudo mv /var/www/t-score-downloads/T-Score.apk.new /var/www/t-score-downloads/T-Score.apk
+          MANIFEST_TMP="$(mktemp)"
+          cat > "$MANIFEST_TMP" <<EOF
+          {
+            "version_code": ${VERSION_CODE},
+            "version_name": "${VERSION_NAME}",
+            "download_url": "https://chat.socialrise.garden/downloads/T-Score.apk",
+            "sha256": "${SHA}",
+            "changelog": "Live Trust Score API integration and profile reliability improvements.",
+            "released_at": "$(date -u +%Y-%m-%d)"
+          }
+          EOF
+          sudo install -m 0644 "$MANIFEST_TMP" /var/www/t-score-downloads/version.json.new
+          sudo mv /var/www/t-score-downloads/version.json.new /var/www/t-score-downloads/version.json
+          rm -f "$MANIFEST_TMP"
+
+          curl -fsS https://chat.socialrise.garden/downloads/version.json
+          curl -fsSI https://chat.socialrise.garden/downloads/T-Score.apk >/dev/null
+          echo "ANDROID_VERSION_CODE=$VERSION_CODE"
+          echo "ANDROID_VERSION_NAME=$VERSION_NAME"
+          echo "ANDROID_SHA256=$SHA"
+
+      - name: Final health and database verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          for s in tenant-platform.service t-score.service tscore-trust-api.service nginx postgresql; do
+            state="$(systemctl is-active "$s" 2>/dev/null || true)"
+            echo "$s=$state"
+            [ "$state" = active ] || exit 1
+          done
+          sudo -u postgres psql -d tscore -Atqc "select to_regclass('tscore_trust.tscore_trust_profiles')" | grep -qx tscore_trust.tscore_trust_profiles
+          for u in \
+            https://boostoraa.com \
+            https://boostsmg.com \
+            https://chat.socialrise.garden \
+            https://chat.socialrise.garden/tscore-api/healthz \
+            https://chat.socialrise.garden/downloads/version.json; do
+            code="$(curl -L --max-time 15 -sS -o /dev/null -w '%{http_code}' "$u" || true)"
+            echo "$u=$code"
+            case "$code" in 2*|3*) ;; *) exit 1;; esac
+          done
+          echo 'DEPLOYMENT_COMPLETE'
