@@ -402,12 +402,9 @@
 
     <!-- T-Score UI strings added for design system -->
     <string name="empty_state">Empty state</string>
-    <string name="avatar">Avatar</string>
     <string name="verified">Verified</string>
     <string name="verification">Verification</string>
     <string name="next">Next</string>
-    <string name="general">General</string>
-    <string name="your_name">Your name</string>
     <string name="deal_with_confidence">Deal with Confidence</string>
 
     <!-- Deals empty state -->
@@ -419,20 +416,8 @@
     <string name="no_people_subtitle">Search for users to start chatting or dealing.</string>
 
     <!-- T-Score UI strings added for design system -->
-    <string name="empty_state">Empty state</string>
-    <string name="avatar">Avatar</string>
-    <string name="verified">Verified</string>
-    <string name="verification">Verification</string>
-    <string name="next">Next</string>
-    <string name="general">General</string>
-    <string name="your_name">Your name</string>
-    <string name="deal_with_confidence">Deal with Confidence</string>
 
     <!-- Deals empty state -->
-    <string name="no_deals_title">No deals yet</string>
-    <string name="no_deals_subtitle">Start a trusted deal from a chat. Completed deals and reviews build your Trust Score.</string>
 
     <!-- People empty state -->
-    <string name="no_people_title">No people yet</string>
-    <string name="no_people_subtitle">Search for users to start chatting or dealing.</string>
 </resources>
