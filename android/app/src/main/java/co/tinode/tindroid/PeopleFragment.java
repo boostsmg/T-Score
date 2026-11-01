@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -17,40 +18,39 @@ public class PeopleFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle state) {
         View root = inflater.inflate(R.layout.fragment_people, container, false);
 
-        // Search field hint already in XML; keep existing button action
         Button find = root.findViewById(R.id.peopleStartChat);
         if (find != null) {
+            find.setText("Find people & start chat");
             find.setOnClickListener(v -> startActivity(new Intent(requireContext(), StartChatActivity.class)));
         }
 
-        // RecyclerView setup for people cards
+        TextView emptyTitle = root.findViewById(R.id.emptyTitle);
+        TextView emptySubtitle = root.findViewById(R.id.emptySubtitle);
+        if (emptyTitle != null) emptyTitle.setText("Find trusted people");
+        if (emptySubtitle != null) emptySubtitle.setText("Search by username, review a person's T-Score and verification badges, then start a conversation.");
+
         RecyclerView peopleList = root.findViewById(R.id.peopleList);
+        View emptyState = root.findViewById(R.id.peopleEmptyState);
         if (peopleList != null) {
             peopleList.setLayoutManager(new LinearLayoutManager(requireContext()));
-            peopleList.setAdapter(new PeopleAdapter(requireContext()));
+            PeopleAdapter adapter = new PeopleAdapter();
+            peopleList.setAdapter(adapter);
+            boolean empty = adapter.getItemCount() == 0;
+            peopleList.setVisibility(empty ? View.GONE : View.VISIBLE);
+            if (emptyState != null) emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
         }
 
         return root;
     }
 
-    /**
-     * Placeholder adapter for people cards. Backend contact/people data is preserved
-     * and can be wired here without changing layout structure.
-     */
     private static class PeopleAdapter extends RecyclerView.Adapter<PeopleAdapter.PersonViewHolder> {
-        PeopleAdapter(android.content.Context ctx) { /* no-op */ }
         @NonNull @Override
         public PersonViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View v = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_person_card, parent, false);
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_person_card, parent, false);
             return new PersonViewHolder(v);
         }
-        @Override
-        public void onBindViewHolder(@NonNull PersonViewHolder holder, int position) { /* no-op */ }
-        @Override
-        public int getItemCount() { return 0; }
-        static class PersonViewHolder extends RecyclerView.ViewHolder {
-            PersonViewHolder(View v) { super(v); }
-        }
+        @Override public void onBindViewHolder(@NonNull PersonViewHolder holder, int position) { }
+        @Override public int getItemCount() { return 0; }
+        static class PersonViewHolder extends RecyclerView.ViewHolder { PersonViewHolder(View v) { super(v); } }
     }
 }
