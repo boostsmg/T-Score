@@ -113,17 +113,20 @@ public class SignUpFragment extends Fragment implements View.OnClickListener, Me
                 fullName.substring(0, Const.MAX_TITLE_LENGTH) : fullName;
         final VxCard card = new VxCard(displayName, null);
         final MetaSetDesc<VxCard, String> meta = new MetaSetDesc<>(card, email);
+        final Credential[] credentials = new Credential[]{
+                new Credential(Credential.METH_EMAIL, email)
+        };
 
         try {
             tinode.connect(hostName, tls, false)
                     .thenApply(new PromisedReply.SuccessListener<>() {
                         @Override
                         public PromisedReply<ServerMessage> onSuccess(ServerMessage ignored) {
-                            // Do not request credential validation and do not auto-login during registration.
-                            // This keeps account creation independent from legacy Tinode email-verification
-                            // and Android AccountManager flows which were causing device-specific crashes.
+                            // Send the email credential because the T-Score server may require
+                            // an email credential at account creation time. Omitting it causes
+                            // a server-side 422 policy violation.
                             return tinode.createAccountBasic(login, password, false, null, meta,
-                                    new Credential[]{});
+                                    credentials);
                         }
                     })
                     .thenApply(new PromisedReply.SuccessListener<>() {
