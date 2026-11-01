@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/tinode/chat/server/store/types"
 	"github.com/tinode/chat/tscore"
 )
 
@@ -14,24 +15,30 @@ type memoryStore struct { deals map[string]tscore.Deal }
 
 func (m *memoryStore) Create(_ context.Context, in tscore.NewDeal) (tscore.Deal,error) {
 	valid,err := tscore.ValidateNewDeal(in); if err != nil { return tscore.Deal{},err }
-	d := tscore.Deal{ID:"deal_test",BuyerUsername:valid.BuyerUsername,SellerUsername:valid.SellerUsername,Title:valid.Title,Terms:valid.Terms,AmountMinor:valid.AmountMinor,Currency:valid.Currency,Status:tscore.DealProposed}
+	d := tscore.Deal{ID:"deal_test",BuyerID:valid.BuyerID,SellerID:valid.SellerID,Title:valid.Title,Terms:valid.Terms,AmountMinor:valid.AmountMinor,Currency:valid.Currency,Status:tscore.DealProposed}
 	m.deals[d.ID]=d; return d,nil
 }
 func (m *memoryStore) Get(_ context.Context,id string)(tscore.Deal,error){ d,ok:=m.deals[id]; if !ok{return tscore.Deal{},tscore.ErrDealNotFound}; return d,nil }
-func (m *memoryStore) ListForUser(_ context.Context,u string,_ int)([]tscore.Deal,error){ out:=[]tscore.Deal{}; for _,d:=range m.deals{if d.BuyerUsername==u||d.SellerUsername==u{out=append(out,d)}}; return out,nil }
+func (m *memoryStore) ListForUser(_ context.Context,u string,_ int)([]tscore.Deal,error){ out:=[]tscore.Deal{}; for _,d:=range m.deals{if d.BuyerID==u||d.SellerID==u{out=append(out,d)}}; return out,nil }
 func (m *memoryStore) Transition(_ context.Context,id string,to tscore.DealStatus)(tscore.Deal,error){ d,ok:=m.deals[id]; if !ok{return tscore.Deal{},tscore.ErrDealNotFound}; if err:=tscore.ValidateDealTransition(d.Status,to);err!=nil{return tscore.Deal{},err}; d.Status=to;m.deals[id]=d;return d,nil }
 
+func users() (string,string) { return types.Uid(101).UserId(), types.Uid(202).UserId() }
+
 func TestCreateRequiresAdminKey(t *testing.T){
+	buyer,seller:=users()
 	h:=New(&memoryStore{deals:map[string]tscore.Deal{}},"secret")
-	r:=httptest.NewRequest(http.MethodPost,"/internal/v1/deals",bytes.NewBufferString(`{"buyer_username":"alice","seller_username":"bob","title":"Test deal","amount_minor":100,"currency":"USD"}`))
+	body:=`{"buyer_id":"`+buyer+`","seller_id":"`+seller+`","title":"Test deal","amount_minor":100,"currency":"USD"}`
+	r:=httptest.NewRequest(http.MethodPost,"/internal/v1/deals",bytes.NewBufferString(body))
 	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
 	if w.Code!=http.StatusUnauthorized{t.Fatalf("status=%d",w.Code)}
 }
 
 func TestCreateAndTransition(t *testing.T){
+	buyer,seller:=users()
 	store:=&memoryStore{deals:map[string]tscore.Deal{}}
 	h:=New(store,"secret")
-	r:=httptest.NewRequest(http.MethodPost,"/internal/v1/deals",bytes.NewBufferString(`{"buyer_username":"alice","seller_username":"bob","title":"Laptop deal","terms":"sealed","amount_minor":50000,"currency":"PKR"}`)); r.Header.Set("X-TScore-Admin-Key","secret")
+	body:=`{"buyer_id":"`+buyer+`","seller_id":"`+seller+`","title":"Laptop deal","terms":"sealed","amount_minor":50000,"currency":"PKR"}`
+	r:=httptest.NewRequest(http.MethodPost,"/internal/v1/deals",bytes.NewBufferString(body)); r.Header.Set("X-TScore-Admin-Key","secret")
 	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
 	if w.Code!=http.StatusCreated{t.Fatalf("create status=%d body=%s",w.Code,w.Body.String())}
 	r=httptest.NewRequest(http.MethodPost,"/internal/v1/deals/deal_test/transition",bytes.NewBufferString(`{"status":"ACCEPTED"}`)); r.Header.Set("X-TScore-Admin-Key","secret")
@@ -40,7 +47,8 @@ func TestCreateAndTransition(t *testing.T){
 }
 
 func TestInvalidTransitionRejected(t *testing.T){
-	store:=&memoryStore{deals:map[string]tscore.Deal{"d":{ID:"d",BuyerUsername:"alice",SellerUsername:"bob",Status:tscore.DealProposed}}}
+	buyer,seller:=users()
+	store:=&memoryStore{deals:map[string]tscore.Deal{"d":{ID:"d",BuyerID:buyer,SellerID:seller,Status:tscore.DealProposed}}}
 	h:=New(store,"secret")
 	r:=httptest.NewRequest(http.MethodPost,"/internal/v1/deals/d/transition",bytes.NewBufferString(`{"status":"COMPLETED"}`)); r.Header.Set("X-TScore-Admin-Key","secret")
 	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
