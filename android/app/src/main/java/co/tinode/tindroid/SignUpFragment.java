@@ -3,7 +3,6 @@ package co.tinode.tindroid;
 import android.annotation.SuppressLint;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -14,8 +13,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
-
-import java.util.ArrayList;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
@@ -29,12 +26,11 @@ import co.tinode.tindroid.media.VxCard;
 import co.tinode.tinodesdk.PromisedReply;
 import co.tinode.tinodesdk.ServerResponseException;
 import co.tinode.tinodesdk.Tinode;
-import co.tinode.tinodesdk.model.AuthScheme;
 import co.tinode.tinodesdk.model.Credential;
 import co.tinode.tinodesdk.model.MetaSetDesc;
 import co.tinode.tinodesdk.model.ServerMessage;
 
-/** Simple and reliable T-Score account registration. */
+/** Reliable T-Score account registration with no legacy Android account dependency. */
 public class SignUpFragment extends Fragment implements View.OnClickListener, MenuProvider {
     private static final String TAG = "SignUpFragment";
 
@@ -49,7 +45,8 @@ public class SignUpFragment extends Fragment implements View.OnClickListener, Me
         }
 
         View fragment = inflater.inflate(R.layout.fragment_signup, container, false);
-        fragment.findViewById(R.id.signUp).setOnClickListener(this);
+        View signUp = fragment.findViewById(R.id.signUp);
+        if (signUp != null) signUp.setOnClickListener(this);
         return fragment;
     }
 
@@ -72,15 +69,20 @@ public class SignUpFragment extends Fragment implements View.OnClickListener, Me
         final EditText newPassword = root.findViewById(R.id.newPassword);
         final EditText editFullName = root.findViewById(R.id.fullName);
         final EditText editEmail = root.findViewById(R.id.email);
+        if (newLogin == null || newPassword == null || editFullName == null || editEmail == null) {
+            Toast.makeText(parent, "Signup form could not be loaded. Please reopen T-Score.", Toast.LENGTH_LONG).show();
+            return;
+        }
 
         final String login = newLogin.getText().toString().trim();
-        final String password = newPassword.getText().toString().trim();
+        final String password = newPassword.getText().toString();
         final String fullName = editFullName.getText().toString().trim();
         final String email = editEmail.getText().toString().trim();
 
         if (login.isEmpty()) { newLogin.setError(getText(R.string.login_required)); return; }
         if (login.contains(":")) { newLogin.setError(getText(R.string.invalid_login)); return; }
         if (password.isEmpty()) { newPassword.setError(getText(R.string.password_required)); return; }
+        if (password.length() < 6) { newPassword.setError("Password must be at least 6 characters"); return; }
         if (fullName.isEmpty()) { editFullName.setError(getText(R.string.full_name_required)); return; }
         if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             editEmail.setError(getText(R.string.email_required)); return;
@@ -88,6 +90,7 @@ public class SignUpFragment extends Fragment implements View.OnClickListener, Me
 
         final Button signUp = (Button) v;
         signUp.setEnabled(false);
+        signUp.setText("Creating...");
 
         final SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(parent);
         @SuppressLint("UnsafeOptInUsageError")
@@ -95,69 +98,88 @@ public class SignUpFragment extends Fragment implements View.OnClickListener, Me
         @SuppressLint("UnsafeOptInUsageError")
         final boolean tls = pref.getBoolean(Utils.PREFS_USE_TLS, TindroidApp.getDefaultTLS());
 
-        final Tinode tinode = Cache.getTinode();
-        final VxCard card = new VxCard(fullName.length() > Const.MAX_TITLE_LENGTH ?
-                fullName.substring(0, Const.MAX_TITLE_LENGTH) : fullName, null);
-        final ArrayList<Credential> credentials = new ArrayList<>();
-        credentials.add(new Credential("email", email));
+        final Tinode tinode;
+        try {
+            tinode = Cache.getTinode();
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to initialize T-Score connection", e);
+            signUp.setEnabled(true);
+            signUp.setText("Create Account");
+            Toast.makeText(parent, "Could not start T-Score connection. Please try again.", Toast.LENGTH_LONG).show();
+            return;
+        }
 
-        tinode.connect(hostName, tls, false)
-                .thenApply(new PromisedReply.SuccessListener<>() {
-                    @Override
-                    public PromisedReply<ServerMessage> onSuccess(ServerMessage ignored) {
-                        MetaSetDesc<VxCard, String> meta = new MetaSetDesc<>(card, null);
-                        return tinode.createAccountBasic(login, password, true, null, meta,
-                                credentials.toArray(new Credential[]{}));
-                    }
-                })
-                .thenApply(new PromisedReply.SuccessListener<>() {
-                    @Override
-                    public PromisedReply<ServerMessage> onSuccess(ServerMessage msg) {
-                        try {
-                            UiUtils.updateAndroidAccount(parent, tinode.getMyId(),
-                                    AuthScheme.basicInstance(login, password).toString(),
-                                    tinode.getAuthToken(), tinode.getAuthTokenExpiration());
-                        } catch (Exception e) {
-                            Log.w(TAG, "Android account integration failed; continuing signup", e);
+        final String displayName = fullName.length() > Const.MAX_TITLE_LENGTH ?
+                fullName.substring(0, Const.MAX_TITLE_LENGTH) : fullName;
+        final VxCard card = new VxCard(displayName, null);
+        final MetaSetDesc<VxCard, String> meta = new MetaSetDesc<>(card, email);
+
+        try {
+            tinode.connect(hostName, tls, false)
+                    .thenApply(new PromisedReply.SuccessListener<>() {
+                        @Override
+                        public PromisedReply<ServerMessage> onSuccess(ServerMessage ignored) {
+                            // Do not request credential validation and do not auto-login during registration.
+                            // This keeps account creation independent from legacy Tinode email-verification
+                            // and Android AccountManager flows which were causing device-specific crashes.
+                            return tinode.createAccountBasic(login, password, false, null, meta,
+                                    new Credential[]{});
                         }
-                        parent.runOnUiThread(() -> {
-                            try {
-                                if (msg != null && msg.ctrl != null && msg.ctrl.code >= 300 &&
-                                        msg.ctrl.text != null && msg.ctrl.text.contains("validate credentials")) {
-                                    signUp.setEnabled(true);
-                                    parent.showFragment(LoginActivity.FRAGMENT_CREDENTIALS, null);
-                                } else {
-                                    tinode.setAutoLoginToken(tinode.getAuthToken());
-                                    UiUtils.onLoginSuccess(parent, signUp, tinode.getMyId());
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "Post-signup navigation failed", e);
+                    })
+                    .thenApply(new PromisedReply.SuccessListener<>() {
+                        @Override
+                        public PromisedReply<ServerMessage> onSuccess(ServerMessage msg) {
+                            pref.edit()
+                                    .putString(LoginActivity.PREFS_LAST_LOGIN, login)
+                                    .putString("tscore_signup_email", email)
+                                    .apply();
+
+                            parent.runOnUiThread(() -> {
+                                if (parent.isFinishing() || parent.isDestroyed()) return;
                                 signUp.setEnabled(true);
-                                Toast.makeText(parent, "Account created. Please sign in.", Toast.LENGTH_LONG).show();
-                                parent.showFragment(LoginActivity.FRAGMENT_LOGIN, null);
-                            }
-                        });
-                        return null;
-                    }
-                })
-                .thenCatch(new PromisedReply.FailureListener<>() {
-                    @Override
-                    public PromisedReply<ServerMessage> onFailure(Exception err) {
-                        Log.w(TAG, "Failed create account", err);
-                        parent.runOnUiThread(() -> {
-                            signUp.setEnabled(true);
-                            if (err instanceof ServerResponseException) {
-                                String reason = ((ServerResponseException) err).getReason();
-                                if ("auth".equals(reason)) newLogin.setError(getText(R.string.login_rejected));
-                                else if ("email".equals(reason)) editEmail.setError(getText(R.string.email_rejected));
-                                else Toast.makeText(parent, R.string.error_new_account_failed, Toast.LENGTH_LONG).show();
-                            } else {
-                                Toast.makeText(parent, R.string.error_new_account_failed, Toast.LENGTH_LONG).show();
-                            }
-                        });
-                        return null;
-                    }
-                });
+                                signUp.setText("Create Account");
+                                Toast.makeText(parent, "Account created successfully. Please sign in.", Toast.LENGTH_LONG).show();
+                                try {
+                                    parent.showFragment(LoginActivity.FRAGMENT_LOGIN, null);
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Unable to return to login after signup", e);
+                                }
+                            });
+                            return null;
+                        }
+                    })
+                    .thenCatch(new PromisedReply.FailureListener<>() {
+                        @Override
+                        public PromisedReply<ServerMessage> onFailure(Exception err) {
+                            Log.w(TAG, "Failed create account", err);
+                            parent.runOnUiThread(() -> {
+                                if (parent.isFinishing() || parent.isDestroyed()) return;
+                                signUp.setEnabled(true);
+                                signUp.setText("Create Account");
+                                if (err instanceof ServerResponseException) {
+                                    String reason = ((ServerResponseException) err).getReason();
+                                    String message = err.getMessage();
+                                    if ("auth".equals(reason)) {
+                                        newLogin.setError(getText(R.string.login_rejected));
+                                    } else if (message != null && message.toLowerCase().contains("duplicate")) {
+                                        newLogin.setError("Username already exists");
+                                    } else {
+                                        Toast.makeText(parent, "Account could not be created: " +
+                                                (message == null ? "server rejected request" : message), Toast.LENGTH_LONG).show();
+                                    }
+                                } else {
+                                    Toast.makeText(parent, "Could not create account. Check internet and try again.", Toast.LENGTH_LONG).show();
+                                }
+                            });
+                            return null;
+                        }
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Signup flow failed before request", e);
+            signUp.setEnabled(true);
+            signUp.setText("Create Account");
+            Toast.makeText(parent, "Could not create account. Please try again.", Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override
