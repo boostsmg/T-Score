@@ -1,0 +1,55 @@
+name: Fix T-Score Material compatibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-tscore-material-compat.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply compatible UI resources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          # Older Material version: remove unsupported bottom-nav indicator attrs.
+          p = Path('android/app/src/main/res/layout/activity_contacts.xml')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('        app:itemActiveIndicatorColor="@color/ts_primary_light"\n', '')
+          s = s.replace('        app:itemActiveIndicatorEnabled="true"/>', '        />')
+          p.write_text(s, encoding='utf-8')
+
+          # Older Material Chip uses normal textColor rather than app:chipTextColor.
+          for p in Path('android/app/src/main/res').rglob('*.xml'):
+              s = p.read_text(encoding='utf-8')
+              ns = s.replace('app:chipTextColor=', 'android:textColor=')
+              if ns != s:
+                  p.write_text(ns, encoding='utf-8')
+
+          drawable = Path('android/app/src/main/res/drawable')
+          drawable.mkdir(parents=True, exist_ok=True)
+          (drawable / 'ic_handshake.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:fillColor="#FFFFFFFF" android:pathData="M16.48,10.41l-4.24,-4.24a2,2 0,0 0,-2.83 0L2,13.58 6.42,18l3.54,-3.54 1.42,1.42a2,2 0,0 0,2.83 0l4.24,-4.24a0.87,0.87 0,0 0,0.03 -1.23zM5,15.17L4.83,15 10.83,9l0.17,0.17L5,15.17zM20.59,8.59L17.41,5.41a2,2 0,0 0,-2.82 0l-1.18,1.18 1.41,1.41L16,6.83 19.17,10l-1.18,1.18 1.42,1.41 1.18,-1.17a2,2 0,0 0,0 -2.83z"/>
+          </vector>\n''', encoding='utf-8')
+          (drawable / 'ic_people.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:fillColor="#FFFFFFFF" android:pathData="M16,11c1.66,0 3,-1.34 3,-3s-1.34,-3 -3,-3 -3,1.34 -3,3 1.34,3 3,3zM8,11c1.66,0 3,-1.34 3,-3S9.66,5 8,5 5,6.34 5,8s1.34,3 3,3zM8,13c-2.33,0 -7,1.17 -7,3.5V19h14v-2.5C15,14.17 10.33,13 8,13zM16,13c-0.29,0 -0.62,0.02 -0.97,0.05 1.16,0.84 1.97,1.97 1.97,3.45V19h6v-2.5C23,14.17 18.33,13 16,13z"/>
+          </vector>\n''', encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android/app/src/main/res
+          if ! git diff --cached --quiet; then
+            git commit -m 'Fix T-Score Material resource compatibility'
+            git push
+          fi
