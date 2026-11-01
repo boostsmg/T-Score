@@ -18,49 +18,40 @@ public class DealsFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle state) {
         View root = inflater.inflate(R.layout.fragment_deals, container, false);
 
-        // Wire empty state placeholders
         TextView emptyTitle = root.findViewById(R.id.emptyTitle);
         TextView emptySubtitle = root.findViewById(R.id.emptySubtitle);
-        if (emptyTitle != null) emptyTitle.setText(R.string.no_deals_title);
-        if (emptySubtitle != null) emptySubtitle.setText(R.string.no_deals_subtitle);
+        if (emptyTitle != null) emptyTitle.setText("No deals yet");
+        if (emptySubtitle != null) emptySubtitle.setText("Start a trusted deal from a chat. Your completed deals and reviews will help build your T-Score.");
 
-        // Status chips
         Chip chipActive = root.findViewById(R.id.dealChipActive);
         Chip chipCompleted = root.findViewById(R.id.dealChipCompleted);
         Chip chipDisputed = root.findViewById(R.id.dealChipDisputed);
-        if (chipActive != null) chipActive.setText("Active");
-        if (chipCompleted != null) chipCompleted.setText("Completed");
-        if (chipDisputed != null) chipDisputed.setText("Disputed");
+        if (chipActive != null) chipActive.setText("0 Active");
+        if (chipCompleted != null) chipCompleted.setText("0 Completed");
+        if (chipDisputed != null) chipDisputed.setText("0 Disputed");
 
-        // RecyclerView setup for deal items
         RecyclerView dealsList = root.findViewById(R.id.dealsList);
+        View emptyState = root.findViewById(R.id.dealsEmptyState);
         if (dealsList != null) {
             dealsList.setLayoutManager(new LinearLayoutManager(requireContext()));
-            // Adapter will be populated when backend deal data is available
-            dealsList.setAdapter(new DealsAdapter(requireContext()));
+            DealsAdapter adapter = new DealsAdapter();
+            dealsList.setAdapter(adapter);
+            boolean empty = adapter.getItemCount() == 0;
+            dealsList.setVisibility(empty ? View.GONE : View.VISIBLE);
+            if (emptyState != null) emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
         }
 
         return root;
     }
 
-    /**
-     * Placeholder adapter for deal items. Backend data integration is preserved
-     * and can be wired here without changing layout structure.
-     */
     private static class DealsAdapter extends RecyclerView.Adapter<DealsAdapter.DealViewHolder> {
-        DealsAdapter(android.content.Context ctx) { /* no-op: data comes from backend */ }
         @NonNull @Override
         public DealViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View v = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_deal_card, parent, false);
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_deal_card, parent, false);
             return new DealViewHolder(v);
         }
-        @Override
-        public void onBindViewHolder(@NonNull DealViewHolder holder, int position) { /* no-op */ }
-        @Override
-        public int getItemCount() { return 0; }
-        static class DealViewHolder extends RecyclerView.ViewHolder {
-            DealViewHolder(View v) { super(v); }
-        }
+        @Override public void onBindViewHolder(@NonNull DealViewHolder holder, int position) { }
+        @Override public int getItemCount() { return 0; }
+        static class DealViewHolder extends RecyclerView.ViewHolder { DealViewHolder(View v) { super(v); } }
     }
 }
