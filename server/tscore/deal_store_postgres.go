@@ -35,6 +35,17 @@ CREATE TABLE IF NOT EXISTS tscore_deals (
 );
 CREATE INDEX IF NOT EXISTS idx_tscore_deals_buyer_created ON tscore_deals (buyer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tscore_deals_seller_created ON tscore_deals (seller_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS tscore_deal_events (
+    id BIGSERIAL PRIMARY KEY,
+    deal_id TEXT NOT NULL REFERENCES tscore_deals(id) ON DELETE CASCADE,
+    actor_id TEXT NULL,
+    event_type TEXT NOT NULL,
+    from_status TEXT NULL,
+    to_status TEXT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_tscore_deal_events_deal_created ON tscore_deal_events (deal_id, created_at ASC, id ASC);
 `)
 	return err
 }
@@ -44,14 +55,25 @@ func (s *DealStore) Create(ctx context.Context, input NewDeal) (Deal, error) {
 	if err != nil { return Deal{}, err }
 	id, err := NewDealID()
 	if err != nil { return Deal{}, err }
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil { return Deal{}, err }
+	defer tx.Rollback(ctx)
+
 	var d Deal
-	err = s.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 INSERT INTO tscore_deals (id,buyer_id,seller_id,created_by,title,terms,amount_minor,currency,status)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 RETURNING id,buyer_id,seller_id,created_by,title,terms,amount_minor,currency,status,created_at,updated_at,accepted_at,delivered_at,completed_at`,
 		id,input.BuyerID,input.SellerID,input.CreatedBy,input.Title,input.Terms,input.AmountMinor,input.Currency,DealProposed,
 	).Scan(&d.ID,&d.BuyerID,&d.SellerID,&d.CreatedBy,&d.Title,&d.Terms,&d.AmountMinor,&d.Currency,&d.Status,&d.CreatedAt,&d.UpdatedAt,&d.AcceptedAt,&d.DeliveredAt,&d.CompletedAt)
-	return d, err
+	if err != nil { return Deal{}, err }
+
+	if _, err = tx.Exec(ctx, `INSERT INTO tscore_deal_events (deal_id,actor_id,event_type,to_status) VALUES ($1,$2,'CREATED',$3)`, id, input.CreatedBy, DealProposed); err != nil {
+		return Deal{}, err
+	}
+	if err := tx.Commit(ctx); err != nil { return Deal{}, err }
+	return d, nil
 }
 
 func (s *DealStore) Get(ctx context.Context, id string) (Deal, error) {
@@ -81,7 +103,7 @@ FROM tscore_deals WHERE buyer_id=$1 OR seller_id=$1 ORDER BY created_at DESC LIM
 	return out, rows.Err()
 }
 
-func (s *DealStore) Transition(ctx context.Context, id string, to DealStatus) (Deal, error) {
+func (s *DealStore) Transition(ctx context.Context, id string, to DealStatus, actor string) (Deal, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil { return Deal{}, err }
 	defer tx.Rollback(ctx)
@@ -100,6 +122,9 @@ func (s *DealStore) Transition(ctx context.Context, id string, to DealStatus) (D
 accepted_at=COALESCE($3,accepted_at), delivered_at=COALESCE($4,delivered_at), completed_at=COALESCE($5,completed_at)
 WHERE id=$1`, id,to,acceptedAt,deliveredAt,completedAt)
 	if err != nil { return Deal{}, err }
+	if _, err = tx.Exec(ctx, `INSERT INTO tscore_deal_events (deal_id,actor_id,event_type,from_status,to_status) VALUES ($1,NULLIF($2,''),'STATUS_CHANGED',$3,$4)`, id, actor, from, to); err != nil {
+		return Deal{}, err
+	}
 	if err := tx.Commit(ctx); err != nil { return Deal{}, err }
 	return s.Get(ctx,id)
 }
