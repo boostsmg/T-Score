@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Start a trusted deal"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="This will be saved as a draft until secure server sync is enabled."
+            android:textSize="13sp" />
+
+        <RadioGroup
+            android:id="@+id/dealRoleGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/dealRoleBuyer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="I am buyer" />
+
+            <RadioButton
+                android:id="@+id/dealRoleSeller"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:text="I am seller" />
+        </RadioGroup>
+
+        <EditText
+            android:id="@+id/dealCounterpartInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="Other user's username"
+            android:inputType="text" />
+
+        <EditText
+            android:id="@+id/dealTitleInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Deal title"
+            android:inputType="textCapSentences" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/dealAmountInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:hint="Amount"
+                android:inputType="numberDecimal" />
+
+            <EditText
+                android:id="@+id/dealCurrencyInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:hint="PKR"
+                android:inputType="textCapCharacters"
+                android:maxLength="3"
+                android:text="PKR" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/dealTermsInput"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:layout_marginTop="10dp"
+            android:gravity="top|start"
+            android:hint="Deal terms / what is being bought or sold"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLength="4000" />
+    </LinearLayout>
+</ScrollView>
