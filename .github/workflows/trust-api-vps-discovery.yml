@@ -1,0 +1,60 @@
+name: T-Score Trust API VPS Discovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trust-api-vps-discovery.yml'
+  workflow_dispatch:
+
+jobs:
+  discovery:
+    runs-on: [self-hosted, boostoraa-production]
+    timeout-minutes: 10
+    steps:
+      - name: Sanitized trust API deployment discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== service states ==='
+          for s in tenant-platform.service t-score.service nginx postgresql; do
+            printf '%s: ' "$s"
+            systemctl is-active "$s" 2>/dev/null || true
+          done
+
+          echo '=== t-score service metadata (sanitized) ==='
+          systemctl show t-score.service \
+            -p User -p Group -p WorkingDirectory -p ExecStart -p EnvironmentFiles \
+            --no-pager 2>/dev/null || true
+
+          echo '=== likely config files ==='
+          for f in \
+            /opt/t-score/tinode.conf \
+            /opt/t-score/tinode-db.conf \
+            /opt/t-score/.env \
+            /etc/t-score/tinode.conf \
+            /etc/t-score/.env \
+            /etc/systemd/system/t-score.service; do
+            if sudo test -f "$f"; then
+              echo "FOUND $f"
+            fi
+          done
+
+          echo '=== postgres databases/users (names only) ==='
+          sudo -u postgres psql -Atqc "select datname from pg_database where datistemplate=false order by datname" 2>/dev/null | sed -n '1,50p' || true
+          sudo -u postgres psql -Atqc "select rolname from pg_roles order by rolname" 2>/dev/null | sed -n '1,50p' || true
+
+          echo '=== target listener availability ==='
+          if ss -ltnH | awk '{print $4}' | grep -Eq '(^|:)6061$'; then
+            echo 'PORT_6061_IN_USE=yes'
+          else
+            echo 'PORT_6061_IN_USE=no'
+          fi
+
+          echo '=== nginx chat.socialrise.garden config locations ==='
+          sudo nginx -T 2>/dev/null | awk '
+            /^# configuration file / {file=$4; sub(":$","",file)}
+            /server_name[[:space:]]+chat\.socialrise\.garden/ {print "FOUND " file}
+          ' | sort -u
+
+          echo 'DISCOVERY_COMPLETE'
