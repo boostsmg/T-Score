@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/tinode/chat/server/store/types"
 )
 
 type DealStatus string
@@ -22,43 +24,52 @@ const (
 )
 
 type Deal struct {
-	ID             string     `json:"id"`
-	BuyerUsername  string     `json:"buyer_username"`
-	SellerUsername string     `json:"seller_username"`
-	Title          string     `json:"title"`
-	Terms          string     `json:"terms"`
-	AmountMinor    int64      `json:"amount_minor"`
-	Currency       string     `json:"currency"`
-	Status         DealStatus `json:"status"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	AcceptedAt     *time.Time `json:"accepted_at,omitempty"`
-	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
-	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+	ID          string     `json:"id"`
+	BuyerID     string     `json:"buyer_id"`
+	SellerID    string     `json:"seller_id"`
+	Title       string     `json:"title"`
+	Terms       string     `json:"terms"`
+	AmountMinor int64      `json:"amount_minor"`
+	Currency    string     `json:"currency"`
+	Status      DealStatus `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	AcceptedAt  *time.Time `json:"accepted_at,omitempty"`
+	DeliveredAt *time.Time `json:"delivered_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 type NewDeal struct {
-	BuyerUsername  string `json:"buyer_username"`
-	SellerUsername string `json:"seller_username"`
-	Title          string `json:"title"`
-	Terms          string `json:"terms"`
-	AmountMinor    int64  `json:"amount_minor"`
-	Currency       string `json:"currency"`
+	BuyerID     string `json:"buyer_id"`
+	SellerID    string `json:"seller_id"`
+	Title       string `json:"title"`
+	Terms       string `json:"terms"`
+	AmountMinor int64  `json:"amount_minor"`
+	Currency    string `json:"currency"`
 }
 
 var ErrDealNotFound = errors.New("deal not found")
 
+func normalizeUserID(id string) string {
+	id = strings.TrimSpace(id)
+	uid := types.ParseUserId(id)
+	if uid.IsZero() {
+		return ""
+	}
+	return uid.UserId()
+}
+
 func ValidateNewDeal(in NewDeal) (NewDeal, error) {
-	in.BuyerUsername = normalizeUsername(in.BuyerUsername)
-	in.SellerUsername = normalizeUsername(in.SellerUsername)
+	in.BuyerID = normalizeUserID(in.BuyerID)
+	in.SellerID = normalizeUserID(in.SellerID)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Terms = strings.TrimSpace(in.Terms)
 	in.Currency = strings.ToUpper(strings.TrimSpace(in.Currency))
 
-	if in.BuyerUsername == "" || in.SellerUsername == "" {
-		return in, errors.New("buyer and seller are required")
+	if in.BuyerID == "" || in.SellerID == "" {
+		return in, errors.New("valid buyer and seller user IDs are required")
 	}
-	if in.BuyerUsername == in.SellerUsername {
+	if in.BuyerID == in.SellerID {
 		return in, errors.New("buyer and seller must be different users")
 	}
 	if len(in.Title) < 3 || len(in.Title) > 120 {
