@@ -27,7 +27,7 @@
         <item name="colorPrimaryDark">@color/ts_primary_dark</item>
         <item name="colorSecondary">@color/ts_primary</item>
         <item name="colorSurface">@color/ts_surface</item>
-        <item name="colorBackground">@color/ts_background</item>
+        <item name="android:colorBackground">@color/ts_background</item>
         <item name="colorOnPrimary">@color/ts_text_on_primary</item>
         <item name="colorOnSurface">@color/ts_text_headline</item>
         <item name="colorOnBackground">@color/ts_text_headline</item>
@@ -138,7 +138,7 @@
          ======================================================================== -->
 
     <!-- Screen title -->
-    <style name="TS.Text.Headline">
+    <style name="TS.Text.Headline" parent="">
         <item name="android:textSize">28sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">@color/ts_text_headline</item>
@@ -146,7 +146,7 @@
     </style>
 
     <!-- Section title -->
-    <style name="TS.Text.Section">
+    <style name="TS.Text.Section" parent="">
         <item name="android:textSize">18sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">@color/ts_text_headline</item>
@@ -154,21 +154,21 @@
     </style>
 
     <!-- Body text -->
-    <style name="TS.Text.Body">
+    <style name="TS.Text.Body" parent="">
         <item name="android:textSize">14sp</item>
         <item name="android:textColor">@color/ts_text_body</item>
         <item name="android:lineHeight">20sp</item>
     </style>
 
     <!-- Subtitle / helper text -->
-    <style name="TS.Text.Subtitle">
+    <style name="TS.Text.Subtitle" parent="">
         <item name="android:textSize">14sp</item>
         <item name="android:textColor">@color/ts_text_subtitle</item>
         <item name="android:lineHeight">20sp</item>
     </style>
 
     <!-- Caption -->
-    <style name="TS.Text.Caption">
+    <style name="TS.Text.Caption" parent="">
         <item name="android:textSize">12sp</item>
         <item name="android:textColor">@color/ts_text_caption</item>
     </style>
@@ -220,21 +220,21 @@
     </style>
 
     <!-- Bottom nav label active -->
-    <style name="TS.BottomNav.Label.Active">
+    <style name="TS.BottomNav.Label.Active" parent="">
         <item name="android:textSize">@dimen/ts_bottom_nav_label_size</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">@color/ts_primary</item>
     </style>
 
     <!-- Bottom nav label inactive -->
-    <style name="TS.BottomNav.Label.Inactive">
+    <style name="TS.BottomNav.Label.Inactive" parent="">
         <item name="android:textSize">@dimen/ts_bottom_nav_label_size</item>
         <item name="android:textStyle">normal</item>
         <item name="android:textColor">@color/ts_text_caption</item>
     </style>
 
     <!-- Chip: status -->
-    <style name="TS.Chip.Status">
+    <style name="TS.Chip.Status" parent="">
         <item name="android:textSize">@dimen/ts_chip_text_size</item>
         <item name="android:textStyle">bold</item>
     </style>
