@@ -57,5 +57,5 @@ func (v *TokenVerifier) VerifyRaw(raw []byte) (string, error) {
 
 	uid := types.Uid(tl.Uid)
 	if uid.IsZero() { return "", errors.New("invalid user id") }
-	return uid.String(), nil
+	return uid.UserId(), nil
 }
