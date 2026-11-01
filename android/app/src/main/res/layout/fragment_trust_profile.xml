@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/ts_background_scaffold"
@@ -11,137 +10,215 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="@dimen/ts_screen_padding">
+        android:paddingStart="20dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="36dp">
 
-        <!-- Header: avatar + name + username -->
-        <LinearLayout
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_horizontal"
-            android:orientation="vertical">
-
-            <ImageView
-                android:id="@+id/profileAvatar"
-                android:layout_width="@dimen/ts_avatar_xlarge"
-                android:layout_height="@dimen/ts_avatar_xlarge"
-                android:contentDescription="@string/avatar"
-                android:src="@drawable/ic_person_circle"
-                app:shapeAppearanceOverlay="@style/roundImageView"/>
-
-            <TextView
-                android:id="@+id/profileName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="T-Score User"
-                android:textAppearance="@style/TS.Text.Headline"/>
-
-            <TextView
-                android:id="@+id/profileUsername"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@t-ScoreUser"
-                android:textAppearance="@style/TS.Text.Subtitle"/>
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/profileTrustBadge"
-                style="@style/TS.Chip.Status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:checkable="false"
-                android:text="New"
-                app:chipBackgroundColor="@color/ts_success_bg"
-                app:chipTextColor="@color/ts_success"/>
-        </LinearLayout>
-
-        <!-- Trust score prominent card -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/ts_section_gap"
-            app:cardBackgroundColor="@color/ts_primary_light"
-            app:cardCornerRadius="@dimen/ts_card_corner_radius">
+            app:cardBackgroundColor="@color/ts_surface_card"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/ts_divider"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_horizontal"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="20dp">
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/profileAvatar"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:contentDescription="@string/avatar"
+                    android:padding="14dp"
+                    android:src="@drawable/ic_person_circle"
+                    app:shapeAppearanceOverlay="@style/roundImageView"
+                    app:strokeColor="@color/ts_primary"
+                    app:strokeWidth="2dp"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/profileName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="T-Score User"
+                        android:textColor="@color/ts_text_headline"
+                        android:textSize="22sp"
+                        android:textStyle="bold"/>
+
+                    <TextView
+                        android:id="@+id/profileUsername"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="@tscore-user"
+                        android:textColor="@color/ts_text_subtitle"
+                        android:textSize="14sp"/>
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/profileTrustBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:checkable="false"
+                        android:text="NEW PROFILE"
+                        android:textStyle="bold"
+                        app:chipBackgroundColor="@color/ts_primary_light"
+                        app:chipMinHeight="30dp"
+                        app:chipTextColor="@color/ts_primary"/>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/ts_primary_dark"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="24dp">
+                android:padding="22dp">
 
                 <TextView
                     android:id="@+id/trustScoreLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Your Trust Score"
-                    android:textAppearance="@style/TS.Text.Section"/>
+                    android:text="YOUR TRUST SCORE"
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold"/>
 
                 <TextView
                     android:id="@+id/trustScoreValue"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="5dp"
                     android:text="0 / 100"
-                    android:textAppearance="@style/TS.Text.Headline"
+                    android:textColor="@android:color/white"
+                    android:textSize="40sp"
                     android:textStyle="bold"/>
+
+                <ProgressBar
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:layout_marginTop="14dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/ts_primary_soft"
+                    style="?android:attr/progressBarStyleHorizontal"/>
 
                 <TextView
                     android:id="@+id/trustScoreStatus"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="New — Start building trust with verified checks"
-                    android:textAppearance="@style/TS.Text.Subtitle"/>
+                    android:layout_marginTop="12dp"
+                    android:text="New — complete verified checks to build confidence before deals."
+                    android:textColor="#E6FFFFFF"
+                    android:textSize="14sp"/>
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
-        <!-- Verification section -->
-        <TextView
-            android:id="@+id/verificationSectionTitle"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/ts_section_gap"
-            android:text="Verification progress"
-            android:textAppearance="@style/TS.Text.Section"/>
+            android:layout_marginTop="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <!-- Verification items -->
+            <TextView
+                android:id="@+id/verificationSectionTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Verification progress"
+                android:textColor="@color/ts_text_headline"
+                android:textSize="19sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0% complete"
+                android:textColor="@color/ts_primary"
+                android:textSize="13sp"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="Every verified check adds confidence to your public profile."
+            android:textColor="@color/ts_text_subtitle"
+            android:textSize="13sp"/>
+
         <LinearLayout
             android:id="@+id/verificationList"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/ts_section_gap_compact"
+            android:layout_marginTop="14dp"
             android:orientation="vertical"/>
 
-        <!-- Privacy section -->
-        <TextView
-            android:id="@+id/privacySectionTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/ts_section_gap"
-            android:text="Privacy"
-            android:textAppearance="@style/TS.Text.Section"/>
-
-        <TextView
-            android:id="@+id/privacyText"
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/ts_section_gap_compact"
-            android:text="Your CNIC number, document image and exact address will never be shown publicly. Other users will only see verification badges such as 'ID Verified' or 'Address Verified'."
-            android:textAppearance="@style/TS.Text.Body"/>
+            android:layout_marginTop="18dp"
+            app:cardBackgroundColor="@color/ts_info_bg"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp">
 
-        <!-- CTA button -->
-        <Button
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:id="@+id/privacySectionTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Privacy protected"
+                    android:textColor="@color/ts_text_headline"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/privacyText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="Your CNIC number, document image and exact address stay private. Other users only see badges like ID Verified or Address Verified."
+                    android:textColor="@color/ts_text_body"
+                    android:textSize="13sp"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/profileSettingsButton"
             style="@style/TS.Button.Primary"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/ts_section_gap"
-            android:text="Profile &amp; Verification Settings"/>
+            android:layout_height="56dp"
+            android:layout_marginTop="18dp"
+            android:text="Continue verification"
+            android:textAllCaps="false"
+            android:textSize="16sp"/>
 
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="40dp"/>
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
