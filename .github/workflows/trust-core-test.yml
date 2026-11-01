@@ -7,6 +7,7 @@ on:
       - 'server/tscore/**'
       - 'server/tscoreapi/**'
       - 'server/tscoredealapi/**'
+      - 'server/tscoreauth/**'
       - 'server/cmd/tscore-trust-api/**'
       - '.github/workflows/trust-core-test.yml'
   workflow_dispatch:
@@ -23,8 +24,8 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      - name: Test trust and deals core/API
-        run: go test ./tscore ./tscoreapi ./tscoredealapi
+      - name: Test trust, deals and auth core/API
+        run: go test ./tscore ./tscoreapi ./tscoredealapi ./tscoreauth
       - name: Build production Linux trust/deals API
         run: |
           mkdir -p ../dist-trust-api
