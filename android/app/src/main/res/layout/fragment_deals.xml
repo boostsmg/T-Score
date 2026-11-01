@@ -13,7 +13,6 @@
         android:orientation="vertical"
         android:padding="@dimen/ts_screen_padding">
 
-        <!-- Header -->
         <TextView
             android:id="@+id/dealsTitle"
             android:layout_width="wrap_content"
@@ -29,7 +28,13 @@
             android:text="Create and track buyer/seller deals here. Completed deals, reviews and disputes contribute to your Trust Score."
             android:textAppearance="@style/TS.Text.Subtitle"/>
 
-        <!-- Status summary chips -->
+        <Button
+            android:id="@+id/startDealButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Start Deal" />
+
         <LinearLayout
             android:id="@+id/dealsStatusBar"
             android:layout_width="match_parent"
@@ -81,7 +86,6 @@
                 app:chipStrokeWidth="1dp"/>
         </LinearLayout>
 
-        <!-- Deal items list -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/dealsList"
             android:layout_width="match_parent"
@@ -91,7 +95,6 @@
             tools:itemCount="3"
             tools:listitem="@layout/item_deal_card"/>
 
-        <!-- Empty state -->
         <include
             android:id="@+id/dealsEmptyState"
             layout="@layout/ts_empty_state"
