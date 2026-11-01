@@ -3,6 +3,7 @@ package tscoredealapi
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,10 +23,13 @@ func (m *memoryStore) Get(_ context.Context,id string)(tscore.Deal,error){ d,ok:
 func (m *memoryStore) ListForUser(_ context.Context,u string,_ int)([]tscore.Deal,error){ out:=[]tscore.Deal{}; for _,d:=range m.deals{if d.BuyerID==u||d.SellerID==u{out=append(out,d)}}; return out,nil }
 func (m *memoryStore) Transition(_ context.Context,id string,to tscore.DealStatus)(tscore.Deal,error){ d,ok:=m.deals[id]; if !ok{return tscore.Deal{},tscore.ErrDealNotFound}; if err:=tscore.ValidateDealTransition(d.Status,to);err!=nil{return tscore.Deal{},err}; d.Status=to;m.deals[id]=d;return d,nil }
 
-func users() (string,string) { return types.Uid(101).UserId(), types.Uid(202).UserId() }
+type fakeVerifier struct { tokens map[string]string }
+func (f fakeVerifier) VerifyBase64(token string)(string,error){ if u,ok:=f.tokens[token];ok{return u,nil}; return "",errors.New("bad token") }
+
+func users() (string,string,string) { return types.Uid(101).UserId(), types.Uid(202).UserId(), types.Uid(303).UserId() }
 
 func TestCreateRequiresAdminKey(t *testing.T){
-	buyer,seller:=users()
+	buyer,seller,_:=users()
 	h:=New(&memoryStore{deals:map[string]tscore.Deal{}},"secret")
 	body:=`{"buyer_id":"`+buyer+`","seller_id":"`+seller+`","created_by":"`+buyer+`","title":"Test deal","terms":"agreed terms","amount_minor":100,"currency":"USD"}`
 	r:=httptest.NewRequest(http.MethodPost,"/internal/v1/deals",bytes.NewBufferString(body))
@@ -33,8 +37,8 @@ func TestCreateRequiresAdminKey(t *testing.T){
 	if w.Code!=http.StatusUnauthorized{t.Fatalf("status=%d",w.Code)}
 }
 
-func TestCreateAndTransition(t *testing.T){
-	buyer,seller:=users()
+func TestCreateAndTransitionInternal(t *testing.T){
+	buyer,seller,_:=users()
 	store:=&memoryStore{deals:map[string]tscore.Deal{}}
 	h:=New(store,"secret")
 	body:=`{"buyer_id":"`+buyer+`","seller_id":"`+seller+`","created_by":"`+buyer+`","title":"Laptop deal","terms":"sealed laptop","amount_minor":50000,"currency":"PKR"}`
@@ -47,10 +51,55 @@ func TestCreateAndTransition(t *testing.T){
 }
 
 func TestInvalidTransitionRejected(t *testing.T){
-	buyer,seller:=users()
+	buyer,seller,_:=users()
 	store:=&memoryStore{deals:map[string]tscore.Deal{"d":{ID:"d",BuyerID:buyer,SellerID:seller,CreatedBy:buyer,Status:tscore.DealProposed}}}
 	h:=New(store,"secret")
 	r:=httptest.NewRequest(http.MethodPost,"/internal/v1/deals/d/transition",bytes.NewBufferString(`{"status":"COMPLETED"}`)); r.Header.Set("X-TScore-Admin-Key","secret")
 	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
 	if w.Code!=http.StatusConflict{t.Fatalf("status=%d body=%s",w.Code,w.Body.String())}
+}
+
+func TestAuthenticatedCreateUsesTokenIdentity(t *testing.T){
+	buyer,seller,_:=users()
+	store:=&memoryStore{deals:map[string]tscore.Deal{}}
+	h:=NewAuthenticated(store,"secret",fakeVerifier{tokens:map[string]string{"buyer-token":buyer}})
+	body:=`{"counterpart_id":"`+seller+`","role":"BUYER","title":"Phone deal","terms":"sealed phone","amount_minor":75000,"currency":"PKR"}`
+	r:=httptest.NewRequest(http.MethodPost,"/v1/deals",bytes.NewBufferString(body)); r.Header.Set("Authorization","Bearer buyer-token")
+	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
+	if w.Code!=http.StatusCreated{t.Fatalf("status=%d body=%s",w.Code,w.Body.String())}
+	d:=store.deals["deal_test"]
+	if d.BuyerID!=buyer || d.SellerID!=seller || d.CreatedBy!=buyer { t.Fatalf("identity not enforced: %+v",d) }
+}
+
+func TestAuthenticatedRoutesRequireBearer(t *testing.T){
+	buyer,_,_:=users()
+	h:=NewAuthenticated(&memoryStore{deals:map[string]tscore.Deal{}},"secret",fakeVerifier{tokens:map[string]string{"good":buyer}})
+	r:=httptest.NewRequest(http.MethodGet,"/v1/deals",nil)
+	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
+	if w.Code!=http.StatusUnauthorized{t.Fatalf("status=%d",w.Code)}
+}
+
+func TestNonParticipantCannotReadDeal(t *testing.T){
+	buyer,seller,outsider:=users()
+	store:=&memoryStore{deals:map[string]tscore.Deal{"d":{ID:"d",BuyerID:buyer,SellerID:seller,CreatedBy:buyer,Status:tscore.DealProposed}}}
+	h:=NewAuthenticated(store,"secret",fakeVerifier{tokens:map[string]string{"out":outsider}})
+	r:=httptest.NewRequest(http.MethodGet,"/v1/deals/d",nil); r.Header.Set("Authorization","Bearer out")
+	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
+	if w.Code!=http.StatusForbidden{t.Fatalf("status=%d body=%s",w.Code,w.Body.String())}
+}
+
+func TestCreatorCannotAcceptOwnProposalButCounterpartyCan(t *testing.T){
+	buyer,seller,_:=users()
+	base:=tscore.Deal{ID:"d",BuyerID:buyer,SellerID:seller,CreatedBy:buyer,Status:tscore.DealProposed}
+	store:=&memoryStore{deals:map[string]tscore.Deal{"d":base}}
+	verifier:=fakeVerifier{tokens:map[string]string{"buyer":buyer,"seller":seller}}
+	h:=NewAuthenticated(store,"secret",verifier)
+
+	r:=httptest.NewRequest(http.MethodPost,"/v1/deals/d/transition",bytes.NewBufferString(`{"status":"ACCEPTED"}`)); r.Header.Set("Authorization","Bearer buyer")
+	w:=httptest.NewRecorder(); h.ServeHTTP(w,r)
+	if w.Code!=http.StatusForbidden{t.Fatalf("creator status=%d body=%s",w.Code,w.Body.String())}
+
+	r=httptest.NewRequest(http.MethodPost,"/v1/deals/d/transition",bytes.NewBufferString(`{"status":"ACCEPTED"}`)); r.Header.Set("Authorization","Bearer seller")
+	w=httptest.NewRecorder(); h.ServeHTTP(w,r)
+	if w.Code!=http.StatusOK{t.Fatalf("counterparty status=%d body=%s",w.Code,w.Body.String())}
 }
