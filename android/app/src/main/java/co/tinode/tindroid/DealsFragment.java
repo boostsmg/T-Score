@@ -191,12 +191,51 @@ public class DealsFragment extends Fragment {
                 "\nAmount: " + draft.currency + " " + draft.amount +
                 "\n\nTerms:\n" + draft.terms +
                 "\n\nStatus: Draft • not sent yet";
-        new AlertDialog.Builder(requireContext())
+
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(draft.title)
                 .setMessage(body)
                 .setNegativeButton("Close", null)
-                .setPositiveButton("Delete Draft", (d, which) -> confirmDelete(draft))
-                .show();
+                .setNeutralButton("Delete Draft", null)
+                .setPositiveButton("Send Deal", null)
+                .create();
+
+        dialog.setOnShowListener(ignored -> {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                dialog.dismiss();
+                confirmDelete(draft);
+            });
+            Button send = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (draft.counterpart == null || !draft.counterpart.startsWith("usr")) {
+                send.setEnabled(false);
+                send.setText("Select verified user first");
+                return;
+            }
+            send.setOnClickListener(v -> {
+                send.setEnabled(false);
+                send.setText("Sending…");
+                DealApiClient.create(draft, new DealApiClient.Callback() {
+                    @Override
+                    public void onSuccess(String dealId) {
+                        if (!isAdded()) return;
+                        DealDraftStore.remove(requireContext(), draft.id);
+                        refresh();
+                        dialog.dismiss();
+                        String suffix = TextUtils.isEmpty(dealId) ? "" : " • " + dealId;
+                        Toast.makeText(requireContext(), "Deal sent successfully" + suffix, Toast.LENGTH_LONG).show();
+                    }
+
+                    @Override
+                    public void onFailure(String message) {
+                        if (!isAdded()) return;
+                        send.setEnabled(true);
+                        send.setText("Send Deal");
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show();
+                    }
+                });
+            });
+        });
+        dialog.show();
     }
 
     private void confirmDelete(DealDraft draft) {
