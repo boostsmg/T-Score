@@ -21,7 +21,7 @@ public class DealsFragment extends Fragment {
         TextView emptyTitle = root.findViewById(R.id.emptyTitle);
         TextView emptySubtitle = root.findViewById(R.id.emptySubtitle);
         if (emptyTitle != null) emptyTitle.setText("No deals yet");
-        if (emptySubtitle != null) emptySubtitle.setText("Start a trusted deal from a chat. Your completed deals and reviews will help build your T-Score.");
+        if (emptySubtitle != null) emptySubtitle.setText("Start a trusted deal from a chat. Completed deals and honest reviews will build your T-Score over time.");
 
         Chip chipActive = root.findViewById(R.id.dealChipActive);
         Chip chipCompleted = root.findViewById(R.id.dealChipCompleted);
