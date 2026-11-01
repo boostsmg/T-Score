@@ -31,7 +31,12 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
+          VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
+          echo "Building T-Score versionCode=${VERSION_CODE} versionName=${VERSION_NAME}"
+          ./gradlew --no-daemon assembleDebug \
+            -PTSCORE_VERSION_CODE="${VERSION_CODE}" \
+            -PTSCORE_VERSION_NAME="${VERSION_NAME}"
       - name: Collect APK
         run: |
           mkdir -p dist
