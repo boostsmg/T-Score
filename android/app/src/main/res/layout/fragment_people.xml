@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ts_background_scaffold"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/ts_screen_padding">
+
+        <!-- Header -->
+        <TextView
+            android:id="@+id/peopleTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="People"
+            android:textAppearance="@style/TS.Text.Headline"/>
+
+        <TextView
+            android:id="@+id/peopleSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Find people, check their profile and Trust Score before you chat or deal."
+            android:textAppearance="@style/TS.Text.Subtitle"/>
+
+        <!-- Search field -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/peopleSearchWrapper"
+            style="@style/TS.TextField.Outlined"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/ts_text_field_height"
+            android:layout_marginTop="@dimen/ts_section_gap"
+            android:hint="Search people by name or username">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/peopleSearch"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:imeOptions="actionSearch"
+                android:inputType="text"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <Button
+            android:id="@+id/peopleStartChat"
+            style="@style/TS.Button.Primary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/ts_section_gap_compact"
+            android:text="Find / Start Chat"/>
+
+        <!-- People list -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/peopleList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/ts_section_gap"
+            android:nestedScrollingEnabled="false"
+            tools:itemCount="3"
+            tools:listitem="@layout/item_person_card"/>
+
+        <!-- Empty state -->
+        <include
+            android:id="@+id/peopleEmptyState"
+            layout="@layout/ts_empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="@dimen/ts_section_gap"
+            android:visibility="gone"/>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

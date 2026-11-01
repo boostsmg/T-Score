@@ -1,5 +1,60 @@
 <resources>
-    <!-- Default screen margins, per the Android Design guidelines. -->
+    <!-- ========================================================================
+         GLOBAL DESIGN SYSTEM - SPACING & DIMENSIONS
+         ======================================================================== -->
+
+    <!-- Screen / container padding -->
+    <dimen name="ts_screen_padding">16dp</dimen>
+    <dimen name="ts_screen_padding_wide">20dp</dimen>
+    <dimen name="ts_section_gap">24dp</dimen>
+    <dimen name="ts_section_gap_compact">16dp</dimen>
+
+    <!-- Component spacing -->
+    <dimen name="ts_item_padding_vertical">12dp</dimen>
+    <dimen name="ts_item_padding_horizontal">16dp</dimen>
+    <dimen name="ts_card_corner_radius">12dp</dimen>
+    <dimen name="ts_card_elevation">2dp</dimen>
+    <dimen name="ts_card_elevation_pressed">8dp</dimen>
+    <dimen name="ts_small_corner_radius">8dp</dimen>
+    <dimen name="ts_pill_corner_radius">16dp</dimen>
+    <dimen name="ts_full_corner_radius">1000dp</dimen>
+
+    <!-- Avatar sizes -->
+    <dimen name="ts_avatar_small">32dp</dimen>
+    <dimen name="ts_avatar_medium">40dp</dimen>
+    <dimen name="ts_avatar_large">48dp</dimen>
+    <dimen name="ts_avatar_xlarge">64dp</dimen>
+    <dimen name="ts_avatar_huge">112dp</dimen>
+    <dimen name="ts_avatar_border_width">2dp</dimen>
+
+    <!-- Bottom navigation -->
+    <dimen name="ts_bottom_nav_height">72dp</dimen>
+    <dimen name="ts_bottom_nav_icon_size">24dp</dimen>
+    <dimen name="ts_bottom_nav_label_size">12sp</dimen>
+
+    <!-- Buttons -->
+    <dimen name="ts_button_height">52dp</dimen>
+    <dimen name="ts_button_corner_radius">12dp</dimen>
+    <dimen name="ts_button_text_size">15sp</dimen>
+    <dimen name="ts_button_text_weight">600</dimen>
+    <dimen name="ts_outline_button_stroke_width">1.5dp</dimen>
+
+    <!-- Text fields -->
+    <dimen name="ts_text_field_height">52dp</dimen>
+    <dimen name="ts_text_field_corner_radius">12dp</dimen>
+    <dimen name="ts_text_field_content_padding">16dp</dimen>
+
+    <!-- Chips / badges -->
+    <dimen name="ts_chip_height">32dp</dimen>
+    <dimen name="ts_chip_corner_radius">16dp</dimen>
+    <dimen name="ts_chip_text_size">12sp</dimen>
+    <dimen name="ts_badge_size">20dp</dimen>
+
+    <!-- Empty state -->
+    <dimen name="ts_empty_state_icon_size">80dp</dimen>
+    <dimen name="ts_empty_state_top_margin">40dp</dimen>
+
+    <!-- Existing dimensions preserved -->
     <dimen name="activity_horizontal_margin">12dp</dimen>
     <dimen name="activity_vertical_margin">6dp</dimen>
     <dimen name="button_text">16sp</dimen>

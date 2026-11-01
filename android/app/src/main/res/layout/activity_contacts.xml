@@ -13,49 +13,20 @@
         android:id="@+id/contentFragment"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"/>
+        android:layout_weight="1"
+        android:background="@color/ts_background_scaffold"/>
 
-    <LinearLayout
+    <!-- Modern Bottom Navigation -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/mainBottomNav"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp">
-
-        <TextView
-            android:id="@+id/tabChats"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="Chats"
-            android:textStyle="bold"/>
-
-        <TextView
-            android:id="@+id/tabDeals"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="Deals"/>
-
-        <TextView
-            android:id="@+id/tabPeople"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="People"/>
-
-        <TextView
-            android:id="@+id/tabProfile"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="Profile"/>
-    </LinearLayout>
+        android:layout_height="@dimen/ts_bottom_nav_height"
+        android:background="@color/ts_surface"
+        app:menu="@menu/main_bottom_nav"
+        app:labelVisibilityMode="labeled"
+        app:itemIconSize="@dimen/ts_bottom_nav_icon_size"
+        app:itemTextColor="@color/ts_text_caption"
+        app:itemActiveIndicatorStyle="@style/Widget.MaterialComponents.BottomNavigationView.ActiveIndicator"
+        app:itemRippleColor="@color/ts_primary_soft"/>
 
 </LinearLayout>

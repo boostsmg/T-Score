@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ts_background_scaffold"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/ts_screen_padding">
+
+        <!-- Header -->
+        <TextView
+            android:id="@+id/dealsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Deals"
+            android:textAppearance="@style/TS.Text.Headline"/>
+
+        <TextView
+            android:id="@+id/dealsSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Create and track buyer/seller deals here. Completed deals, reviews and disputes contribute to your Trust Score."
+            android:textAppearance="@style/TS.Text.Subtitle"/>
+
+        <!-- Status summary chips -->
+        <LinearLayout
+            android:id="@+id/dealsStatusBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/ts_section_gap"
+            android:orientation="horizontal">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/dealChipActive"
+                style="@style/TS.Chip.Status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
+                android:text="Active"
+                app:chipBackgroundColor="@color/ts_info_bg"
+                app:chipTextColor="@color/ts_info"
+                app:chipStrokeColor="@color/ts_info"
+                app:chipStrokeWidth="1dp"/>
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/dealChipCompleted"
+                style="@style/TS.Chip.Status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
+                android:text="Completed"
+                app:chipBackgroundColor="@color/ts_success_bg"
+                app:chipTextColor="@color/ts_success"
+                app:chipStrokeColor="@color/ts_success"
+                app:chipStrokeWidth="1dp"/>
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/dealChipDisputed"
+                style="@style/TS.Chip.Status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:checkable="false"
+                android:text="Disputed"
+                app:chipBackgroundColor="@color/ts_warning_bg"
+                app:chipTextColor="@color/ts_warning"
+                app:chipStrokeColor="@color/ts_warning"
+                app:chipStrokeWidth="1dp"/>
+        </LinearLayout>
+
+        <!-- Deal items list -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/dealsList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/ts_section_gap"
+            android:nestedScrollingEnabled="false"
+            tools:itemCount="3"
+            tools:listitem="@layout/item_deal_card"/>
+
+        <!-- Empty state -->
+        <include
+            android:id="@+id/dealsEmptyState"
+            layout="@layout/ts_empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="@dimen/ts_section_gap"
+            android:visibility="gone"/>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

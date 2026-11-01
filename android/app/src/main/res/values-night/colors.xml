@@ -1,41 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- ========================================================================
+         DARK THEME - T-SCORE
+         ======================================================================== -->
+
+    <!-- Surfaces (dark) -->
+    <color name="ts_surface">#1A1A1A</color>
+    <color name="ts_surface_card">#252525</color>
+    <color name="ts_surface_elevated">#2D2D2D</color>
+    <color name="ts_surface_disabled">#333333</color>
+
+    <!-- Background (dark) -->
+    <color name="ts_background">#121212</color>
+    <color name="ts_background_scaffold">#1A1A1A</color>
+
+    <!-- Text hierarchy (dark) -->
+    <color name="ts_text_on_primary">#FFFFFF</color>
+    <color name="ts_text_headline">#FAFAFA</color>
+    <color name="ts_text_body">#E0E0E0</color>
+    <color name="ts_text_subtitle">#A0A0A0</color>
+    <color name="ts_text_hint">#6E6E6E</color>
+    <color name="ts_text_caption">#616161</color>
+    <color name="ts_text_inverse">#FFFFFF</color>
+
+    <!-- Dividers & borders (dark) -->
+    <color name="ts_divider">#333333</color>
+    <color name="ts_divider_light">#2A2A2A</color>
+    <color name="ts_border">#4A4A4A</color>
+    <color name="ts_border_focus">#00897B</color>
+
+    <!-- Status / semantic (dark - same as light for readability) -->
+    <color name="ts_success">#2E7D32</color>
+    <color name="ts_success_bg">#1B3020</color>
+    <color name="ts_warning">#F57C00</color>
+    <color name="ts_warning_bg">#3E2723</color>
+    <color name="ts_danger">#C62828</color>
+    <color name="ts_danger_bg">#3E1717</color>
+    <color name="ts_info">#1565C0</color>
+    <color name="ts_info_bg">#172A4A</color>
+
+    <!-- Trust score levels (dark) -->
+    <color name="ts_trust_new">#9E9E9E</color>
+    <color name="ts_trust_basic">#42A5F5</color>
+    <color name="ts_trust_trusted">#00897B</color>
+    <color name="ts_trust_highly">#4CAF50</color>
+
+    <!-- ========================================================================
+         Legacy dark overrides (preserve existing names)
+         ======================================================================== -->
     <color name="colorMessageBubbleMine">#FF202020</color>
     <color name="colorMessageBubbleMineFlashing">#F666</color>
     <color name="colorMessageBubbleMineFlashingLight">#F444</color>
     <color name="colorMessageBubbleOther">#FF003308</color>
     <color name="colorMessageBubbleOtherFlashing">#FF558870</color>
     <color name="colorMessageBubbleOtherFlashingLight">#FF305530</color>
-
     <color name="colorReplyBubble">#10CCCCCC</color>
     <color name="colorReplyText">#CCCCCC</color>
-
     <color name="colorNegativeAction">#983220</color>
     <color name="colorPositiveAction">#326F3E</color>
     <color name="colorNeutralAction">#555555</color>
     <color name="colorSwipeChervon">#AAAAAA</color>
-
-    <!-- Audio waveform color -->
     <color name="waveform">#60CCCCCC</color>
     <color name="waveformPast">#80FFFFFF</color>
-
     <color name="colorChipBackground">#263238</color>
     <color name="colorChipBorder">#546E7A</color>
-
     <color name="colorListDivider">#666666</color>
-
     <color name="colorAccent">#00897B</color>
-
     <color name="colorDanger">#d32f2f</color>
-
     <color name="colorOffline">#999900</color>
-
     <color name="colorImagePreviewBg">#333333</color>
-
     <color name="colorImagePlaceholder">#212121</color>
-
     <color name="circularProgressBg">#FF666666</color>
     <color name="circularProgressFg">#FFCCCCCC</color>
-
     <color name="colorImageMetaPanel">#80000000</color>
 </resources>

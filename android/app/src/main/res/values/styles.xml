@@ -1,22 +1,20 @@
 <resources>
+    <!-- ========================================================================
+         GLOBAL DESIGN SYSTEM - STYLES & THEMES
+         ======================================================================== -->
+
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <!-- Splash screen background. -->
         <item name="windowSplashScreenBackground">@color/colorSplashScreenBackground</item>
-
-        <!-- Drawable or an animated drawable. Required. -->
         <item name="windowSplashScreenAnimatedIcon">@drawable/logo_splash</item>
-        <!-- Required for animated icons. -->
         <item name="windowSplashScreenAnimationDuration">200</item>
-
-        <!-- The theme of the Activity that directly follows the splash screen. Required. -->
         <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
 
     <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
@@ -25,13 +23,21 @@
         <item name="windowActionModeOverlay">true</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay</item>
         <item name="android:listDivider">@drawable/list_divider</item>
+        <item name="colorPrimary">@color/ts_primary</item>
+        <item name="colorPrimaryDark">@color/ts_primary_dark</item>
+        <item name="colorSecondary">@color/ts_primary</item>
+        <item name="colorSurface">@color/ts_surface</item>
+        <item name="colorBackground">@color/ts_background</item>
+        <item name="colorOnPrimary">@color/ts_text_on_primary</item>
+        <item name="colorOnSurface">@color/ts_text_headline</item>
+        <item name="colorOnBackground">@color/ts_text_headline</item>
     </style>
 
-    <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.ActionBar">
-        <item name="android:textColorHint">@color/grey</item>
+    <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.MaterialComponents.ActionBar">
+        <item name="android:textColorHint">@color/ts_text_hint</item>
     </style>
 
-    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
+    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.MaterialComponents.Light" />
 
     <style name="PreferenceThemeOverlay">
         <item name="preferenceScreenStyle">@style/Preference.PreferenceScreen</item>
@@ -42,8 +48,7 @@
         <item name="checkBoxPreferenceStyle">@style/Preference.CheckBoxPreference</item>
         <item name="switchPreferenceCompatStyle">@style/Preference.SwitchPreferenceCompat</item>
         <item name="dialogPreferenceStyle">@style/Preference.DialogPreference</item>
-        <item name="editTextPreferenceStyle">@style/Preference.DialogPreference.EditTextPreference
-        </item>
+        <item name="editTextPreferenceStyle">@style/Preference.DialogPreference.EditTextPreference</item>
         <item name="preferenceFragmentListStyle">@style/PreferenceFragmentList</item>
     </style>
 
@@ -54,8 +59,6 @@
         <item name="android:windowBackground">@drawable/splash_screen</item>
     </style>
 
-    <!--suppress CheckTagEmptyBody. This is required by the component.
-    Otherwise, it won't compile. -->
     <style name="LicensesTheme" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
@@ -63,7 +66,7 @@
     </style>
 
     <style name="searchTextHighlight">
-        <item name="android:textColor">@color/colorAccent</item>
+        <item name="android:textColor">@color/ts_primary</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -92,11 +95,11 @@
     </style>
 
     <style name="sectionTitleStyle" parent="@android:style/TextAppearance.Medium">
-        <item name="android:textColor">@color/colorAccent</item>
+        <item name="android:textColor">@color/ts_primary</item>
         <item name="android:textAllCaps">true</item>
         <item name="android:fontFeatureSettings">smcp</item>
-        <item name="android:layout_marginBottom">@dimen/activity_padding</item>
-        <item name="android:layout_marginTop">@dimen/activity_padding</item>
+        <item name="android:layout_marginBottom">@dimen/ts_section_gap_compact</item>
+        <item name="android:layout_marginTop">@dimen/ts_section_gap</item>
     </style>
 
     <style name="ProgressBar" parent="Widget.AppCompat.ProgressBar.Horizontal">
@@ -128,5 +131,111 @@
         <item name="cornerSizeTopLeft">16dp</item>
         <item name="cornerSizeBottomRight">0dp</item>
         <item name="cornerSizeBottomLeft">0dp</item>
+    </style>
+
+    <!-- ========================================================================
+         PREMIUM COMPONENT STYLES
+         ======================================================================== -->
+
+    <!-- Screen title -->
+    <style name="TS.Text.Headline">
+        <item name="android:textSize">28sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/ts_text_headline</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <!-- Section title -->
+    <style name="TS.Text.Section">
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/ts_text_headline</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <!-- Body text -->
+    <style name="TS.Text.Body">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/ts_text_body</item>
+        <item name="android:lineHeight">20sp</item>
+    </style>
+
+    <!-- Subtitle / helper text -->
+    <style name="TS.Text.Subtitle">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/ts_text_subtitle</item>
+        <item name="android:lineHeight">20sp</item>
+    </style>
+
+    <!-- Caption -->
+    <style name="TS.Text.Caption">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/ts_text_caption</item>
+    </style>
+
+    <!-- Primary filled button -->
+    <style name="TS.Button.Primary" parent="Widget.MaterialComponents.Button.UnelevatedButton">
+        <item name="android:backgroundTint">@color/ts_primary</item>
+        <item name="android:textColor">@color/ts_text_on_primary</item>
+        <item name="android:textSize">@dimen/ts_button_text_size</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">@dimen/ts_button_height</item>
+        <item name="shapeAppearanceOverlay">@style/Shape.Card.Rounded</item>
+    </style>
+
+    <!-- Outline button -->
+    <style name="TS.Button.Outline" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textColor">@color/ts_primary</item>
+        <item name="strokeColor">@color/ts_primary</item>
+        <item name="strokeWidth">@dimen/ts_outline_button_stroke_width</item>
+        <item name="android:textSize">@dimen/ts_button_text_size</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">@dimen/ts_button_height</item>
+        <item name="shapeAppearanceOverlay">@style/Shape.Card.Rounded</item>
+    </style>
+
+    <!-- Text field (outlined) -->
+    <style name="TS.TextField.Outlined" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/ts_border</item>
+        <item name="boxStrokeWidth">1.5dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="boxCornerRadiusTopStart">@dimen/ts_text_field_corner_radius</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/ts_text_field_corner_radius</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/ts_text_field_corner_radius</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/ts_text_field_corner_radius</item>
+        <item name="hintTextColor">@color/ts_text_hint</item>
+        <item name="errorTextColor">@color/ts_danger</item>
+    </style>
+
+    <!-- Shape: Card rounded -->
+    <style name="Shape.Card.Rounded" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/ts_card_corner_radius</item>
+    </style>
+
+    <!-- Shape: Pill -->
+    <style name="Shape.Pill" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/ts_pill_corner_radius</item>
+    </style>
+
+    <!-- Bottom nav label active -->
+    <style name="TS.BottomNav.Label.Active">
+        <item name="android:textSize">@dimen/ts_bottom_nav_label_size</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/ts_primary</item>
+    </style>
+
+    <!-- Bottom nav label inactive -->
+    <style name="TS.BottomNav.Label.Inactive">
+        <item name="android:textSize">@dimen/ts_bottom_nav_label_size</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textColor">@color/ts_text_caption</item>
+    </style>
+
+    <!-- Chip: status -->
+    <style name="TS.Chip.Status">
+        <item name="android:textSize">@dimen/ts_chip_text_size</item>
+        <item name="android:textStyle">bold</item>
     </style>
 </resources>

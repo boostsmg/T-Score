@@ -8,6 +8,9 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Menu;
+import android.view.MenuItem;
+
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.util.List;
 
@@ -69,10 +72,26 @@ public class ChatsActivity extends BaseActivity
 
         setSupportActionBar(findViewById(R.id.toolbar));
 
-        findViewById(R.id.tabChats).setOnClickListener(v -> showMainTab(FRAGMENT_CHATLIST));
-        findViewById(R.id.tabDeals).setOnClickListener(v -> showMainTab(FRAGMENT_DEALS));
-        findViewById(R.id.tabPeople).setOnClickListener(v -> showMainTab(FRAGMENT_PEOPLE));
-        findViewById(R.id.tabProfile).setOnClickListener(v -> showMainTab(FRAGMENT_TRUST_PROFILE));
+        BottomNavigationView bottomNav = findViewById(R.id.mainBottomNav);
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.tabChats) {
+                showMainTab(FRAGMENT_CHATLIST);
+                return true;
+            } else if (id == R.id.tabDeals) {
+                showMainTab(FRAGMENT_DEALS);
+                return true;
+            } else if (id == R.id.tabPeople) {
+                showMainTab(FRAGMENT_PEOPLE);
+                return true;
+            } else if (id == R.id.tabProfile) {
+                showMainTab(FRAGMENT_TRUST_PROFILE);
+                return true;
+            }
+            return false;
+        });
+        // Set default selected item
+        bottomNav.setSelectedItemId(R.id.tabChats);
 
         FragmentManager fm = getSupportFragmentManager();
         if (fm.findFragmentById(R.id.contentFragment) == null) {
@@ -118,12 +137,15 @@ public class ChatsActivity extends BaseActivity
     }
 
     private void updateMainTabStyle(String selected) {
-        int bold = android.graphics.Typeface.BOLD;
-        int normal = android.graphics.Typeface.NORMAL;
-        ((android.widget.TextView) findViewById(R.id.tabChats)).setTypeface(null, FRAGMENT_CHATLIST.equals(selected) ? bold : normal);
-        ((android.widget.TextView) findViewById(R.id.tabDeals)).setTypeface(null, FRAGMENT_DEALS.equals(selected) ? bold : normal);
-        ((android.widget.TextView) findViewById(R.id.tabPeople)).setTypeface(null, FRAGMENT_PEOPLE.equals(selected) ? bold : normal);
-        ((android.widget.TextView) findViewById(R.id.tabProfile)).setTypeface(null, FRAGMENT_TRUST_PROFILE.equals(selected) ? bold : normal);
+        BottomNavigationView bottomNav = findViewById(R.id.mainBottomNav);
+        if (bottomNav == null) return;
+        int itemId;
+        if (FRAGMENT_CHATLIST.equals(selected)) itemId = R.id.tabChats;
+        else if (FRAGMENT_DEALS.equals(selected)) itemId = R.id.tabDeals;
+        else if (FRAGMENT_PEOPLE.equals(selected)) itemId = R.id.tabPeople;
+        else if (FRAGMENT_TRUST_PROFILE.equals(selected)) itemId = R.id.tabProfile;
+        else itemId = R.id.tabChats;
+        bottomNav.setSelectedItemId(itemId);
     }
 
     /**
