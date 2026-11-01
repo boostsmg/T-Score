@@ -1,5 +1,7 @@
 package co.tinode.tindroid;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -11,6 +13,8 @@ import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
@@ -32,6 +36,17 @@ public class DealsFragment extends Fragment {
     private Chip chipDisputed;
     private DealsAdapter adapter;
 
+    private final ActivityResultLauncher<Intent> personPicker = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+                    return;
+                }
+                String userId = result.getData().getStringExtra(StartChatActivity.EXTRA_SELECTED_USER_ID);
+                if (!TextUtils.isEmpty(userId)) {
+                    showCreateDealDialog(userId);
+                }
+            });
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle state) {
         View root = inflater.inflate(R.layout.fragment_deals, container, false);
@@ -39,7 +54,7 @@ public class DealsFragment extends Fragment {
         TextView emptyTitle = root.findViewById(R.id.emptyTitle);
         TextView emptySubtitle = root.findViewById(R.id.emptySubtitle);
         if (emptyTitle != null) emptyTitle.setText("No deals yet");
-        if (emptySubtitle != null) emptySubtitle.setText("Start a trusted deal. Drafts stay on this device until secure server sync is enabled.");
+        if (emptySubtitle != null) emptySubtitle.setText("Choose a T-Score user, agree on clear terms, then start a trusted deal.");
 
         chipActive = root.findViewById(R.id.dealChipActive);
         chipCompleted = root.findViewById(R.id.dealChipCompleted);
@@ -54,10 +69,19 @@ public class DealsFragment extends Fragment {
         }
 
         Button start = root.findViewById(R.id.startDealButton);
-        if (start != null) start.setOnClickListener(v -> showCreateDealDialog());
+        if (start != null) {
+            start.setText("Select person & start deal");
+            start.setOnClickListener(v -> launchPersonPicker());
+        }
 
         refresh();
         return root;
+    }
+
+    private void launchPersonPicker() {
+        Intent intent = new Intent(requireContext(), StartChatActivity.class);
+        intent.putExtra(StartChatActivity.EXTRA_SELECT_FOR_DEAL, true);
+        personPicker.launch(intent);
     }
 
     @Override
@@ -77,7 +101,7 @@ public class DealsFragment extends Fragment {
         if (chipDisputed != null) chipDisputed.setText("0 Disputed");
     }
 
-    private void showCreateDealDialog() {
+    private void showCreateDealDialog(String selectedUserId) {
         View form = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_create_deal, null, false);
         EditText counterpart = form.findViewById(R.id.dealCounterpartInput);
         EditText title = form.findViewById(R.id.dealTitleInput);
@@ -86,6 +110,12 @@ public class DealsFragment extends Fragment {
         EditText terms = form.findViewById(R.id.dealTermsInput);
         RadioButton buyer = form.findViewById(R.id.dealRoleBuyer);
 
+        if (!TextUtils.isEmpty(selectedUserId)) {
+            counterpart.setText(selectedUserId);
+            counterpart.setEnabled(false);
+            counterpart.setHint("Selected T-Score user ID");
+        }
+
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setView(form)
                 .setNegativeButton("Cancel", null)
@@ -93,9 +123,10 @@ public class DealsFragment extends Fragment {
                 .create();
 
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String other = cleanUsername(counterpart.getText().toString());
-            String self = cleanUsername(PreferenceManager.getDefaultSharedPreferences(requireContext())
+            String other = cleanCounterpart(counterpart.getText().toString());
+            String selfLogin = cleanCounterpart(PreferenceManager.getDefaultSharedPreferences(requireContext())
                     .getString(LoginActivity.PREFS_LAST_LOGIN, ""));
+            String selfUid = Cache.getTinode().getMyId();
             String dealTitle = title.getText().toString().trim();
             String dealAmount = amount.getText().toString().trim();
             String dealCurrency = currency.getText().toString().trim().toUpperCase(Locale.US);
@@ -103,10 +134,11 @@ public class DealsFragment extends Fragment {
             String role = buyer.isChecked() ? "BUYER" : "SELLER";
 
             if (TextUtils.isEmpty(other)) {
-                counterpart.setError("Username required");
+                counterpart.setError("Choose another T-Score user");
                 return;
             }
-            if (!TextUtils.isEmpty(self) && self.equals(other)) {
+            if ((!TextUtils.isEmpty(selfUid) && selfUid.equals(other)) ||
+                    (!TextUtils.isEmpty(selfLogin) && selfLogin.equals(other))) {
                 counterpart.setError("Choose another user");
                 return;
             }
@@ -136,20 +168,26 @@ public class DealsFragment extends Fragment {
             DealDraftStore.add(requireContext(), DealDraft.create(other, role, dealTitle, dealAmount, dealCurrency, dealTerms));
             dialog.dismiss();
             refresh();
-            Toast.makeText(requireContext(), "Deal draft saved", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Deal draft saved for selected user", Toast.LENGTH_SHORT).show();
         }));
         dialog.show();
     }
 
-    private String cleanUsername(String value) {
+    private String cleanCounterpart(String value) {
         String out = value == null ? "" : value.trim();
+        if (out.startsWith("usr")) return out;
         while (out.startsWith("@")) out = out.substring(1);
         return out.toLowerCase(Locale.US);
     }
 
+    private String displayCounterpart(String value) {
+        if (TextUtils.isEmpty(value)) return "Unknown user";
+        return value.startsWith("usr") ? value : "@" + value;
+    }
+
     private void showDetails(DealDraft draft) {
         String roleText = "BUYER".equals(draft.role) ? "You are the buyer" : "You are the seller";
-        String body = roleText + "\nOther user: @" + draft.counterpart +
+        String body = roleText + "\nOther user: " + displayCounterpart(draft.counterpart) +
                 "\nAmount: " + draft.currency + " " + draft.amount +
                 "\n\nTerms:\n" + draft.terms +
                 "\n\nStatus: Draft • not sent yet";
@@ -192,7 +230,7 @@ public class DealsFragment extends Fragment {
         public void onBindViewHolder(@NonNull DealViewHolder holder, int position) {
             DealDraft d = items.get(position);
             holder.title.setText(d.title);
-            holder.counterpart.setText("@" + d.counterpart + " • " + ("BUYER".equals(d.role) ? "You buy" : "You sell"));
+            holder.counterpart.setText(displayCounterpart(d.counterpart) + " • " + ("BUYER".equals(d.role) ? "You buy" : "You sell"));
             holder.amount.setText(d.currency + " " + d.amount);
             holder.status.setText("Draft");
             holder.itemView.setOnClickListener(v -> showDetails(d));
