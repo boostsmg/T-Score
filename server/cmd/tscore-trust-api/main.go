@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tinode/chat/tscore"
 	"github.com/tinode/chat/tscoreapi"
+	"github.com/tinode/chat/tscoredealapi"
 )
 
 func main() {
@@ -37,19 +38,31 @@ func main() {
 		log.Fatalf("database ping: %v", err)
 	}
 
-	store := tscore.NewPostgresStore(pool)
-	if err := store.EnsureSchema(ctx); err != nil {
+	trustStore := tscore.NewPostgresStore(pool)
+	if err := trustStore.EnsureSchema(ctx); err != nil {
 		log.Fatalf("trust schema: %v", err)
 	}
+	dealStore := tscore.NewDealStore(pool)
+	if err := dealStore.EnsureSchema(ctx); err != nil {
+		log.Fatalf("deal schema: %v", err)
+	}
+
+	trustHandler := tscoreapi.New(trustStore, adminKey)
+	dealHandler := tscoredealapi.New(dealStore, adminKey)
+	mux := http.NewServeMux()
+	mux.Handle("/internal/v1/deals", dealHandler)
+	mux.Handle("/internal/v1/deals/", dealHandler)
+	mux.Handle("/internal/v1/users/", dealHandler)
+	mux.Handle("/", trustHandler)
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           tscoreapi.New(store, adminKey),
+		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	log.Printf("T-Score trust API listening on %s", addr)
+	log.Printf("T-Score trust/deals API listening on %s", addr)
 	log.Fatal(srv.ListenAndServe())
 }
