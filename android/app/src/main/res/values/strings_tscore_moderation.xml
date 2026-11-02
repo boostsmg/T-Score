@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ts_report_reason_title">Why are you reporting this?</string>
+    <string name="ts_report_details_title">Report details</string>
+    <string name="ts_report_details_hint">Add useful details (optional)</string>
+    <string name="ts_report_reason_scam">Scam or fraud</string>
+    <string name="ts_report_reason_harassment">Harassment</string>
+    <string name="ts_report_reason_impersonation">Impersonation</string>
+    <string name="ts_report_reason_spam">Spam</string>
+    <string name="ts_report_reason_other">Other</string>
+    <string name="ts_report_submitted">Report submitted. This conversation was blocked.</string>
+    <string name="ts_report_saved_failed">Could not save the T-Score moderation case, but this conversation will still be blocked and reported.</string>
+    <string name="ts_report_action">Block &amp; report</string>
+</resources>
