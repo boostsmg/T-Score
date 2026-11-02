@@ -2,7 +2,7 @@ name: Android Crash Audit
 
 on:
   push:
-    branches: [fix/android-repeated-close-20261102]
+    branches: [main, fix/android-repeated-close-20261102]
     paths:
       - 'android/**'
       - '.github/workflows/android-crash-audit.yml'
