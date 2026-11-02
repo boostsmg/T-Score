@@ -47,6 +47,7 @@ public class CreateGroupFragment extends Fragment implements UtilsMedia.MediaPre
     private static final int LOADER_ID = 102;
 
     private PromisedReply.FailureListener<ServerMessage> mFailureListener;
+    private boolean mCreatingTopic = false;
 
     // Contacts selected as group members.
     private MembersAdapter mSelectedAdapter;
@@ -101,12 +102,17 @@ public class CreateGroupFragment extends Fragment implements UtilsMedia.MediaPre
                     if (!isAdded()) {
                         return;
                     }
+                    mCreatingTopic = false;
+                    View create = getView() != null ? getView().findViewById(R.id.goNext) : null;
+                    if (create != null) {
+                        create.setEnabled(true);
+                        create.setAlpha(1f);
+                    }
                     if (err instanceof NotConnectedException) {
                         Toast.makeText(activity, R.string.no_connection, Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(activity, R.string.action_failed, Toast.LENGTH_SHORT).show();
                     }
-                    startActivity(new Intent(activity, ChatsActivity.class));
                 });
                 return null;
             }
@@ -136,7 +142,10 @@ public class CreateGroupFragment extends Fragment implements UtilsMedia.MediaPre
         rv.setHasFixedSize(false);
 
         mSelectedAdapter = new MembersAdapter(null,
-                (unique, pos) -> mContactsAdapter.toggleSelected(unique, pos), true);
+                (unique, pos) -> {
+                    mContactsAdapter.toggleSelected(unique, pos);
+                    updateSelectedCount(view);
+                }, true);
         rv.setAdapter(mSelectedAdapter);
 
         // Recycler view with all available Tinode contacts.
@@ -153,13 +162,18 @@ public class CreateGroupFragment extends Fragment implements UtilsMedia.MediaPre
                 mSelectedAdapter.remove(unique);
             }
             mContactsAdapter.toggleSelected(unique, position);
+            updateSelectedCount(view);
         });
         rv.setAdapter(mContactsAdapter);
+        updateSelectedCount(view);
 
         mContactsLoaderCallback = new ContactsLoaderCallback(LOADER_ID, activity, mContactsAdapter);
 
         // This button creates the new group.
         view.findViewById(R.id.goNext).setOnClickListener(v -> {
+            if (mCreatingTopic) {
+                return;
+            }
             EditText titleEdit = activity.findViewById(R.id.editTitle);
             String topicTitle = titleEdit.getText().toString();
             if (TextUtils.isEmpty(topicTitle)) {
@@ -199,6 +213,10 @@ public class CreateGroupFragment extends Fragment implements UtilsMedia.MediaPre
                 // If image is not loaded, the drawable is a vector. Ignore it.
             }
 
+            mCreatingTopic = true;
+            v.setEnabled(false);
+            v.setAlpha(0.55f);
+            Toast.makeText(activity, R.string.creating_group, Toast.LENGTH_SHORT).show();
             createTopic(activity, topicTitle, bmp, description, pcomment, isChannel,
                     Cache.getTinode().parseTags(tags), members);
         });
@@ -234,6 +252,7 @@ public class CreateGroupFragment extends Fragment implements UtilsMedia.MediaPre
                                 intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                                 intent.putExtra(Const.INTENT_EXTRA_TOPIC, topic.getName());
                                 startActivity(intent);
+                                activity.finish();
 
                                 return null;
                             }
@@ -241,8 +260,17 @@ public class CreateGroupFragment extends Fragment implements UtilsMedia.MediaPre
                     }
                 })
                 .thenCatch(mFailureListener);
+    }
 
-        startActivity(new Intent(activity, ChatsActivity.class));
+
+    private void updateSelectedCount(View root) {
+        if (root == null || mSelectedAdapter == null) {
+            return;
+        }
+        android.widget.TextView count = root.findViewById(R.id.selectedMemberCount);
+        if (count != null) {
+            count.setText(getString(R.string.group_members_selected, mSelectedAdapter.getAdded().length));
+        }
     }
 
     // Restarts the loader. This triggers onCreateLoader(), which builds the

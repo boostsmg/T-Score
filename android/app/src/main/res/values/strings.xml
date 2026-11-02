@@ -420,4 +420,9 @@
     <!-- Deals empty state -->
 
     <!-- People empty state -->
+
+    <string name="group_create_tip">Create a private group, choose members, and manage permissions from group info.</string>
+    <string name="group_members_selected">%1$d member(s) selected</string>
+    <string name="creating_group">Creating group…</string>
+    <string name="calls_one_to_one_only">Audio and video calls are available in 1-to-1 chats.</string>
 </resources>

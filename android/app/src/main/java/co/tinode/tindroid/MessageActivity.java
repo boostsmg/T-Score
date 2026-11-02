@@ -22,6 +22,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
@@ -379,6 +380,8 @@ public class MessageActivity extends BaseActivity
             }
         }
 
+        invalidateOptionsMenu();
+
         mNewSubsAvailable = false;
         mKnownSubs = new HashSet<>();
 
@@ -596,6 +599,16 @@ public class MessageActivity extends BaseActivity
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(@NonNull Menu menu) {
+        boolean p2pCall = mTopic != null && mTopic.isValid() && mTopic.isP2PType() && !mTopic.isDeleted();
+        MenuItem audio = menu.findItem(R.id.action_audio_call);
+        MenuItem video = menu.findItem(R.id.action_video_call);
+        if (audio != null) audio.setVisible(p2pCall);
+        if (video != null) video.setVisible(p2pCall);
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (mTopic == null || !mTopic.isValid()) {
             return false;
@@ -622,6 +635,10 @@ public class MessageActivity extends BaseActivity
                 mTopic.updateArchived(false);
                 return true;
             } else if (id == R.id.action_audio_call || id == R.id.action_video_call) {
+                if (!mTopic.isP2PType()) {
+                    Toast.makeText(this, R.string.calls_one_to_one_only, Toast.LENGTH_SHORT).show();
+                    return true;
+                }
                 try {
                     CallManager.placeOutgoingCall(this, mTopicName, id == R.id.action_audio_call);
                 } catch (IllegalStateException | SecurityException | UnsupportedOperationException ex) {

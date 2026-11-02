@@ -60,6 +60,15 @@
                     android:layout_height="wrap_content"
                     android:text="@string/general" />
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/group_create_tip"
+                    android:textColor="@color/ts_text_subtitle"
+                    android:textSize="13sp" />
+
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -170,6 +179,17 @@
                     android:layout_marginStart="@dimen/label_h_padding"
                     android:text="@string/add_members"
                     />
+
+                <TextView
+                    android:id="@+id/selectedMemberCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/label_h_padding"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="6dp"
+                    android:text="@string/group_members_selected"
+                    android:textColor="@color/ts_primary"
+                    android:textStyle="bold" />
 
                 <include layout="@layout/edit_members" />
             </LinearLayout>
