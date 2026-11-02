@@ -8,19 +8,25 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 
 import com.google.android.material.chip.Chip;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class TrustProfileFragment extends Fragment {
     private LinearLayout verificationList;
     private String username;
     private String email;
+    private final Map<String,String> verificationStates = new HashMap<>();
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle state) {
@@ -29,6 +35,7 @@ public class TrustProfileFragment extends Fragment {
         renderLocalState();
         loadLiveTrust();
         loadReputation();
+        loadVerificationRequests();
         return root;
     }
 
@@ -39,6 +46,7 @@ public class TrustProfileFragment extends Fragment {
             renderLocalState();
             loadLiveTrust();
             loadReputation();
+            loadVerificationRequests();
         }
     }
 
@@ -68,17 +76,13 @@ public class TrustProfileFragment extends Fragment {
         if (reputationStats != null) reputationStats.setText("Deal history is linked to your permanent T-Score user ID.");
 
         for (TrustScoreModel.Item item : TrustScoreModel.items()) {
-            addCheck(item.title, localFallbackStatus(item.title), "+" + item.maxPoints + " points");
+            addCheck(item.title, requestAwareStatus(item.title, localFallbackStatus(item.title)), "+" + item.maxPoints + " points");
         }
 
         Button profile = requireView().findViewById(R.id.profileSettingsButton);
         if (profile != null) {
-            profile.setText("Continue verification");
-            profile.setOnClickListener(v -> {
-                if (getActivity() instanceof ChatsActivity) {
-                    ((ChatsActivity) getActivity()).showFragment(ChatsActivity.FRAGMENT_ACCOUNT_INFO, null);
-                }
-            });
+            profile.setText("Manage verification");
+            profile.setOnClickListener(v -> showVerificationManager());
         }
     }
 
@@ -86,14 +90,11 @@ public class TrustProfileFragment extends Fragment {
         if (TextUtils.isEmpty(username) || "T-Score user".equals(username)) return;
         final String requestedUser = username;
         TrustApiClient.fetch(requestedUser, new TrustApiClient.Callback() {
-            @Override
-            public void onSuccess(TrustApiClient.Result result) {
+            @Override public void onSuccess(TrustApiClient.Result result) {
                 if (!isAdded() || getView() == null || !requestedUser.equals(username)) return;
                 renderLiveResult(result);
             }
-
-            @Override
-            public void onError(Exception error) {
+            @Override public void onError(Exception error) {
                 if (!isAdded() || getView() == null || !requestedUser.equals(username)) return;
                 Chip badge = requireView().findViewById(R.id.profileTrustBadge);
                 TextView status = requireView().findViewById(R.id.trustScoreStatus);
@@ -101,6 +102,59 @@ public class TrustProfileFragment extends Fragment {
                 if (badge != null) badge.setText("OFFLINE");
                 if (value != null) value.setText("— / " + TrustScoreModel.maximumScore());
                 if (status != null) status.setText("Could not refresh T-Score. Your account and chats are unaffected.");
+            }
+        });
+    }
+
+    private void loadVerificationRequests() {
+        VerificationApiClient.list(new VerificationApiClient.ListCallback() {
+            @Override public void onSuccess(List<VerificationApiClient.Item> items) {
+                if (!isAdded()) return;
+                verificationStates.clear();
+                for (VerificationApiClient.Item item : items) {
+                    if (!verificationStates.containsKey(item.type) || "APPROVED".equals(item.status)) {
+                        verificationStates.put(item.type, item.status);
+                    }
+                }
+                renderLocalState();
+                loadLiveTrust();
+            }
+            @Override public void onFailure(String message) { }
+        });
+    }
+
+    private void showVerificationManager() {
+        final String[] labels = {"Email", "Phone number", "CNIC / National ID", "Address", "Selfie / liveness", "Profile photo"};
+        final String[] types = {"EMAIL", "PHONE", "IDENTITY", "ADDRESS", "LIVENESS", "PROFILE_PHOTO"};
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Choose verification")
+                .setItems(labels, (dialog, which) -> startVerification(labels[which], types[which]))
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
+    private void startVerification(String label, String type) {
+        String existing = verificationStates.get(type);
+        if ("APPROVED".equals(existing)) {
+            Toast.makeText(requireContext(), label + " is already verified", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if ("PENDING".equals(existing)) {
+            Toast.makeText(requireContext(), label + " verification is already pending", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        VerificationApiClient.create(type, new VerificationApiClient.ActionCallback() {
+            @Override public void onSuccess(boolean evidenceRequired) {
+                if (!isAdded()) return;
+                verificationStates.put(type, "PENDING");
+                renderLocalState();
+                String message = evidenceRequired
+                        ? "Request started. Secure private evidence upload is required before approval."
+                        : "Verification request started successfully.";
+                new AlertDialog.Builder(requireContext()).setTitle(label).setMessage(message).setPositiveButton("OK", null).show();
+            }
+            @Override public void onFailure(String message) {
+                if (isAdded()) Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -114,17 +168,9 @@ public class TrustProfileFragment extends Fragment {
                 if (!isAdded() || getView() == null || !requestedId.equals(Cache.getTinode().getMyId())) return;
                 TextView rating = requireView().findViewById(R.id.reputationRating);
                 TextView stats = requireView().findViewById(R.id.reputationStats);
-                if (rating != null) {
-                    if (summary.reviewCount > 0) rating.setText(String.format(Locale.US, "★ %.1f / 5", summary.averageRating));
-                    else rating.setText("No ratings yet");
-                }
-                if (stats != null) {
-                    stats.setText(summary.reviewCount + (summary.reviewCount == 1 ? " review" : " reviews") +
-                            " • " + summary.completedDeals + " completed deals" +
-                            " • " + summary.disputedDeals + " disputed deals");
-                }
+                if (rating != null) rating.setText(summary.reviewCount > 0 ? String.format(Locale.US, "★ %.1f / 5", summary.averageRating) : "No ratings yet");
+                if (stats != null) stats.setText(summary.reviewCount + (summary.reviewCount == 1 ? " review" : " reviews") + " • " + summary.completedDeals + " completed deals" + " • " + summary.disputedDeals + " disputed deals");
             }
-
             @Override public void onFailure(String message) {
                 if (!isAdded() || getView() == null) return;
                 TextView rating = requireView().findViewById(R.id.reputationRating);
@@ -147,17 +193,32 @@ public class TrustProfileFragment extends Fragment {
         for (TrustScoreModel.Item item : TrustScoreModel.items()) {
             String key = keyForTitle(item.title);
             int earned = result.breakdown.containsKey(key) ? result.breakdown.get(key) : 0;
-            boolean complete = earned > 0;
             String itemStatus;
-            if (complete) {
-                itemStatus = "Verified / earned";
-            } else if ("Email".equals(item.title) && !TextUtils.isEmpty(email)) {
-                itemStatus = "Added · verification pending";
-            } else {
-                itemStatus = localFallbackStatus(item.title);
-            }
+            if (earned > 0) itemStatus = "Verified / earned";
+            else if ("Email".equals(item.title) && !TextUtils.isEmpty(email)) itemStatus = "Added · verification pending";
+            else itemStatus = requestAwareStatus(item.title, localFallbackStatus(item.title));
             addCheck(item.title, itemStatus, earned + " / " + item.maxPoints + " points");
         }
+    }
+
+    private String requestAwareStatus(String title, String fallback) {
+        String type = typeForTitle(title);
+        if (type == null) return fallback;
+        String state = verificationStates.get(type);
+        if ("APPROVED".equals(state)) return "Approved verification";
+        if ("PENDING".equals(state)) return "Verification pending";
+        if ("REJECTED".equals(state)) return "Rejected · you can submit again";
+        return fallback;
+    }
+
+    private String typeForTitle(String title) {
+        if ("Profile Photo".equals(title)) return "PROFILE_PHOTO";
+        if ("Email".equals(title)) return "EMAIL";
+        if ("Phone number".equals(title)) return "PHONE";
+        if ("CNIC / National ID".equals(title)) return "IDENTITY";
+        if ("Address".equals(title)) return "ADDRESS";
+        if ("Selfie / liveness".equals(title)) return "LIVENESS";
+        return null;
     }
 
     private String statusForScore(int score, String badge) {
