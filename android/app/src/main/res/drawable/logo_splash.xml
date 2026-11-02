@@ -4,21 +4,33 @@
     android:viewportWidth="192"
     android:viewportHeight="192">
 
-    <!-- Premium black mark matching the approved T-Score logo. -->
+    <!-- T-Score approved blue rounded-square brand mark. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M45,24 C33,24 24,33 24,45 L24,147 C24,159 33,168 45,168 L147,168 C159,168 168,159 168,147 L168,45 C168,33 159,24 147,24 Z" />
-    <path
-        android:fillColor="#000000"
-        android:pathData="M48,31 C38,31 31,38 31,48 L31,144 C31,154 38,161 48,161 L144,161 C154,161 161,154 161,144 L161,48 C161,38 154,31 144,31 Z" />
+        android:fillColor="#3F7FF0"
+        android:pathData="M50,24 L142,24 C156.4,24 168,35.6 168,50 L168,142 C168,156.4 156.4,168 142,168 L50,168 C35.6,168 24,156.4 24,142 L24,50 C24,35.6 35.6,24 50,24 Z" />
 
-    <!-- White cap of the T. -->
+    <!-- Lower-left chain link. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M62,51 L130,51 C133,51 135,53 135,56 L135,67 C135,70 133,72 130,72 L62,72 C59,72 57,70 57,67 L57,56 C57,53 59,51 62,51 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="15"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M83,72 L57,98 C45,110 45,129 57,141 C69,153 88,153 100,141 L126,115" />
 
-    <!-- Red stem of the T. -->
+    <!-- Upper-right chain link: blue under-stroke creates the interlock at the crossing. -->
     <path
-        android:fillColor="#FF0000"
-        android:pathData="M87,69 L105,69 L105,136 C105,142 101,146 96,146 C91,146 87,142 87,136 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#3F7FF0"
+        android:strokeWidth="27"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M109,120 L135,94 C147,82 147,63 135,51 C123,39 104,39 92,51 L66,77" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="15"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M109,120 L135,94 C147,82 147,63 135,51 C123,39 104,39 92,51 L66,77" />
 </vector>
