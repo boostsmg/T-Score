@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.telecom.CallAudioState;
 import android.util.Log;
 
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 import org.jetbrains.annotations.NotNull;
@@ -142,6 +143,8 @@ public class Cache {
             // Keep in app to prevent garbage collection.
             TindroidApp.retainCache(sInstance);
 
+            // Push notifications are optional. A missing Firebase configuration must
+            // never prevent Tinode/chat from starting.
             initFCM();
         }
 
@@ -149,7 +152,17 @@ public class Cache {
     }
 
     public static void initFCM() {
-        if (!sInstance.mFCMTokenRequested) {
+        if (sInstance.mFCMTokenRequested) {
+            return;
+        }
+
+        try {
+            if (TindroidApp.getAppContext() == null ||
+                    FirebaseApp.getApps(TindroidApp.getAppContext()).isEmpty()) {
+                Log.i(TAG, "Firebase is not configured; skipping optional FCM registration");
+                return;
+            }
+
             FirebaseMessaging fbId = FirebaseMessaging.getInstance();
             //noinspection ConstantConditions: Google lies about getInstance not returning null.
             if (fbId != null) {
@@ -164,6 +177,12 @@ public class Cache {
             } else {
                 Log.w(TAG, "FirebaseMessaging not available");
             }
+        } catch (Throwable t) {
+            // Firebase/FCM is not required for login, password reset, chat or local cache.
+            // Some builds intentionally ship without google-services.json, so never crash
+            // the main process merely because the default FirebaseApp is unavailable.
+            sInstance.mFCMTokenRequested = false;
+            Log.w(TAG, "FCM unavailable; continuing without push notifications", t);
         }
     }
 
@@ -177,7 +196,17 @@ public class Cache {
             sInstance.mTinode = null;
         }
         sInstance.mFCMTokenRequested = false;
-        FirebaseMessaging.getInstance().unregister();
+
+        // Firebase is optional in T-Score builds. Logout/cache invalidation must work
+        // even when no default FirebaseApp exists.
+        try {
+            if (TindroidApp.getAppContext() != null &&
+                    !FirebaseApp.getApps(TindroidApp.getAppContext()).isEmpty()) {
+                FirebaseMessaging.getInstance().unregister();
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "FCM unregister skipped because Firebase is unavailable", t);
+        }
     }
 
     public static CallInProgress getCallInProgress() {
@@ -256,7 +285,7 @@ public class Cache {
 
     public static int getCallAudioRoute() {
         if (sInstance.mCallInProgress != null) {
-            return sInstance.mCallInProgress.getAudioRoute();
+            return sInstance.mCallInProgress.getCallAudioRoute();
         }
         return CallAudioState.ROUTE_EARPIECE;
     }
