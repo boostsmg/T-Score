@@ -1,12 +1,17 @@
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/ts_background_scaffold">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/chat_list"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingTop="6dp"
+        android:paddingBottom="88dp"
+        android:scrollbars="vertical" />
 
     <co.tinode.tindroid.widgets.CircleProgressView
         android:id="@+id/progressCircle"
