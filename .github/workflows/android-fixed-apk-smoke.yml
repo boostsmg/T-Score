@@ -1,0 +1,47 @@
+name: Smoke Test Fixed T-Score APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-fixed-apk-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download freshly built fixed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p fixed
+          gh run download 41386214203 -R boostsmg/T-Score -n T-Score-Android-APK -D fixed
+          test -s fixed/T-Score.apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch fixed APK
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r fixed/T-Score.apk
+            adb logcat -c
+            adb shell am force-stop com.tscore.app
+            adb shell monkey -p com.tscore.app -c android.intent.category.LAUNCHER 1
+            sleep 10
+            adb shell pidof com.tscore.app | grep -q .
+            adb shell dumpsys activity activities | grep -E 'mResumedActivity|com.tscore.app|co.tinode.tindroid' | head -80 || true
+            adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: com\.tscore\.app|Caused by:|StackOverflowError|TScoreApp|InitRouterActivity|LoginActivity|ChatsActivity' | tail -400 || true
