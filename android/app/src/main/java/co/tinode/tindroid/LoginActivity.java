@@ -1,5 +1,8 @@
 package co.tinode.tindroid;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -10,6 +13,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.fragment.app.DialogFragment;
@@ -21,27 +25,8 @@ import androidx.preference.PreferenceManager;
 import co.tinode.tindroid.db.BaseDb;
 
 /**
- * LoginActivity is a FrameLayout which switches between fragments:
- * - LoginFragment
- * - SignUpFragment
- * - LoginSettingsFragment
- * - PasswordResetFragment
- * - CredentialsFragment
- * <p>
- * 1. If connection to the server is already established and authenticated, launch ContactsActivity
- * 2. If no connection to the server, get the last used account:
- * 3.1 Connect to server
- * 3.1.1 If connection is successful, authenticate with the token received from the account
- * 3.1.1.1 If authentication is successful go to 1.
- * 3.1.1.2 If not, go to 4.
- * 3.1.2 If connection is not successful
- * 3.1.2 Show offline indicator
- * 3.1.3 Access locally stored account.
- * 3.1.3.1 If locally stored account is found, launch ContactsActivity
- * 3.1.3.2 If not found, go to 4.
- * 4. If account not found, show login form
+ * LoginActivity is a FrameLayout which switches between fragments.
  */
-
 public class LoginActivity extends BaseActivity
         implements ImageViewFragment.AvatarCompletionHandler {
     private static final String TAG = "LoginActivity";
@@ -54,14 +39,12 @@ public class LoginActivity extends BaseActivity
     static final String FRAGMENT_RESET = "reset";
     static final String FRAGMENT_CREDENTIALS = "cred";
     static final String FRAGMENT_AVATAR_PREVIEW = "avatar_preview";
-
     static final String FRAGMENT_BRANDING = "branding";
     static final String PREFS_LAST_LOGIN = "pref_lastLogin";
 
     private AvatarViewModel mAvatarVM;
 
     static {
-        // Otherwise crash on API 21.
         AppCompatDelegate.setCompatVectorFromResourcesEnabled(true);
     }
 
@@ -70,21 +53,30 @@ public class LoginActivity extends BaseActivity
         super.onCreate(savedInstanceState);
 
         UiUtils.setupSystemToolbar(this);
-
         setContentView(R.layout.activity_login);
         applyEdgeToEdgeInsets(findViewById(android.R.id.content));
-
         PreferenceManager.setDefaultValues(this, R.xml.login_preferences, false);
 
         final Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-
-        // Handle clicks on the '<-' arrow in the toolbar.
         toolbar.setNavigationOnClickListener(v -> getSupportFragmentManager().popBackStack());
 
-        BaseDb db = BaseDb.getInstance();
-        if (db.isReady()) {
-            // We already have a configured account. All good. Launch ContactsActivity and stop.
+        final String crashReport = TScoreApp.peekCrashReport();
+        final boolean recoveryMode = !TextUtils.isEmpty(crashReport) || !TScoreApp.isStartupHealthy();
+
+        boolean dbReady = false;
+        boolean credentialsRequired = false;
+        if (!recoveryMode) {
+            try {
+                BaseDb db = BaseDb.getInstance();
+                dbReady = db.isReady();
+                credentialsRequired = db.isCredValidationRequired();
+            } catch (Throwable t) {
+                Log.e(TAG, "Database state check failed; staying on safe login", t);
+            }
+        }
+
+        if (dbReady) {
             Intent intent = new Intent(this, ChatsActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(intent);
@@ -92,24 +84,58 @@ public class LoginActivity extends BaseActivity
             return;
         }
 
-        // Check if we need full authentication or just credentials.
-        showFragment(db.isCredValidationRequired() ? FRAGMENT_CREDENTIALS : FRAGMENT_LOGIN,
-                null, false);
+        try {
+            showFragment(credentialsRequired ? FRAGMENT_CREDENTIALS : FRAGMENT_LOGIN,
+                    null, false);
+        } catch (Throwable t) {
+            Log.e(TAG, "Unable to render requested login fragment; forcing clean login fragment", t);
+            try {
+                getSupportFragmentManager().beginTransaction()
+                        .replace(R.id.contentFragment, new LoginFragment(), FRAGMENT_LOGIN)
+                        .commitAllowingStateLoss();
+            } catch (Throwable fallbackError) {
+                Log.e(TAG, "Clean login fallback failed", fallbackError);
+            }
+        }
 
-        // Used to store uploaded avatar before sending it to the server.
         mAvatarVM = new ViewModelProvider(this).get(AvatarViewModel.class);
+
+        if (!TextUtils.isEmpty(crashReport)) {
+            showCrashReport(crashReport);
+        }
+    }
+
+    private void showCrashReport(String report) {
+        try {
+            new AlertDialog.Builder(this)
+                    .setTitle("T-Score crash detected")
+                    .setMessage("App ne pichli dafa fatal error detect kiya tha. 'Copy Report' press karke report copy kro aur ChatGPT ko send kro.\n\n" + report)
+                    .setCancelable(false)
+                    .setNegativeButton("Copy Report", (dialog, which) -> {
+                        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                        if (cm != null) {
+                            cm.setPrimaryClip(ClipData.newPlainText("T-Score crash report", report));
+                            Toast.makeText(this, "Crash report copied", Toast.LENGTH_LONG).show();
+                        }
+                    })
+                    .setPositiveButton("Continue Safe", (dialog, which) -> {
+                        TScoreApp.clearCrashReport();
+                        dialog.dismiss();
+                    })
+                    .show();
+        } catch (Throwable t) {
+            Log.e(TAG, "Unable to show crash report dialog", t);
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        UiUtils.setupToolbar(this, null, null,
-                false, null, false, 0);
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
+        try {
+            UiUtils.setupToolbar(this, null, null, false, null, false, 0);
+        } catch (Throwable t) {
+            Log.w(TAG, "Toolbar setup failed during login resume", t);
+        }
     }
 
     void reportError(final Exception err, final Button button, final int attachTo, final int errId) {
@@ -143,13 +169,8 @@ public class LoginActivity extends BaseActivity
         });
     }
 
-
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-
         int id = item.getItemId();
         if (id == R.id.action_settings) {
             showFragment(FRAGMENT_SETTINGS, null);
@@ -170,7 +191,7 @@ public class LoginActivity extends BaseActivity
     }
 
     private void showFragment(String tag, Bundle args, Boolean addToBackstack) {
-        if (isFinishing() || isDestroyed()) {
+        if (isFinishing() || isDestroyed() || TextUtils.isEmpty(tag)) {
             return;
         }
 
@@ -204,18 +225,25 @@ public class LoginActivity extends BaseActivity
                     fragment = new BrandingFragment();
                     break;
                 default:
-                    throw new IllegalArgumentException();
+                    Log.w(TAG, "Ignoring unknown login fragment tag: " + tag);
+                    fragment = new LoginFragment();
+                    tag = FRAGMENT_LOGIN;
+                    break;
             }
         }
 
-        if (fragment.getArguments() != null) {
-            fragment.getArguments().putAll(args);
-        } else {
-            fragment.setArguments(args);
+        // args may legitimately be null. The old code called Bundle.putAll(null) on a
+        // restored fragment, which can hard-close the activity on some restore paths.
+        if (args != null) {
+            if (fragment.getArguments() != null) {
+                fragment.getArguments().putAll(args);
+            } else {
+                fragment.setArguments(args);
+            }
         }
 
         FragmentTransaction tx = fm.beginTransaction()
-                .replace(R.id.contentFragment, fragment)
+                .replace(R.id.contentFragment, fragment, tag)
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN);
         if (addToBackstack) {
             tx = tx.addToBackStack(null);
@@ -225,7 +253,7 @@ public class LoginActivity extends BaseActivity
 
     @Override
     public void onAcceptAvatar(String topicName, Bitmap avatar) {
-        if (isFinishing() || isDestroyed()) {
+        if (isFinishing() || isDestroyed() || mAvatarVM == null) {
             return;
         }
         mAvatarVM.setAvatar(avatar);
