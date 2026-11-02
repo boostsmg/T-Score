@@ -6,6 +6,7 @@ on:
     paths:
       - 'server/tscore/**'
       - 'server/tscoreapi/**'
+      - 'server/tscoretrustapi/**'
       - 'server/tscoredealapi/**'
       - 'server/tscorereputationapi/**'
       - 'server/tscoreverificationapi/**'
@@ -28,8 +29,8 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      - name: Test trust, deals, reputation, verification, moderation, standing and auth core/API
-        run: go test ./tscore ./tscoreapi ./tscoredealapi ./tscorereputationapi ./tscoreverificationapi ./tscoremoderationapi ./tscorestandingapi ./tscoreauth
+      - name: Test trust, canonical trust, deals, reputation, verification, moderation, standing and auth core/API
+        run: go test ./tscore ./tscoreapi ./tscoretrustapi ./tscoredealapi ./tscorereputationapi ./tscoreverificationapi ./tscoremoderationapi ./tscorestandingapi ./tscoreauth
       - name: Build production Linux T-Score API
         run: |
           mkdir -p ../dist-trust-api
