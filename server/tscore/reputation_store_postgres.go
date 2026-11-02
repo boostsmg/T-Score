@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (s *DealStore) EnsureReputationSchema(ctx context.Context) error {
@@ -56,7 +57,7 @@ RETURNING id::text,deal_id,reviewer_id,reviewee_id,rating,comment,created_at`,
 		dealID,reviewerID,reviewee,rating,comment,
 	).Scan(&out.ID,&out.DealID,&out.ReviewerID,&out.RevieweeID,&out.Rating,&out.Comment,&out.CreatedAt)
 	if err != nil {
-		var pgErr *pgx.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { return DealReview{}, ErrReviewExists }
 		return DealReview{}, err
 	}
@@ -97,7 +98,7 @@ RETURNING id::text,deal_id,opened_by,reason,details,status,created_at,updated_at
 		dealID,actor,reason,details,
 	).Scan(&dispute.ID,&dispute.DealID,&dispute.OpenedBy,&dispute.Reason,&dispute.Details,&dispute.Status,&dispute.CreatedAt,&dispute.UpdatedAt,&dispute.ResolvedAt)
 	if err != nil {
-		var pgErr *pgx.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err,&pgErr) && pgErr.Code=="23505" { return DealDispute{},Deal{},ErrDisputeExists }
 		return DealDispute{},Deal{},err
 	}
