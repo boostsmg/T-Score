@@ -36,11 +36,51 @@ final class ReputationApiClient {
         }
     }
 
+    static final class Summary {
+        final String userId;
+        final int reviewCount;
+        final double averageRating;
+        final int completedDeals;
+        final int disputedDeals;
+        Summary(JSONObject o) {
+            userId = o.optString("user_id", "");
+            reviewCount = o.optInt("review_count", 0);
+            averageRating = o.optDouble("average_rating", 0.0);
+            completedDeals = o.optInt("completed_deals", 0);
+            disputedDeals = o.optInt("disputed_deals", 0);
+        }
+    }
+
     interface Callback { void onSuccess(); void onFailure(String message); }
     interface DealCallback { void onSuccess(DealApiClient.RemoteDeal deal); void onFailure(String message); }
     interface ReviewsCallback { void onSuccess(List<ReviewRecord> reviews); void onFailure(String message); }
+    interface SummaryCallback { void onSuccess(Summary summary); void onFailure(String message); }
 
     private ReputationApiClient() {}
+
+    static void fetchSummary(String userId, SummaryCallback callback) {
+        if (userId == null || !userId.startsWith("usr")) {
+            callback.onFailure("Reputation unavailable");
+            return;
+        }
+        EXECUTOR.execute(() -> {
+            HttpURLConnection c = null;
+            try {
+                c = open(BASE + "/users/" + userId + "/summary", "GET", null);
+                int code = c.getResponseCode();
+                String response = readResponse(c, code);
+                if (code >= 200 && code < 300) {
+                    Summary summary = new Summary(new JSONObject(response));
+                    MAIN.post(() -> callback.onSuccess(summary));
+                } else {
+                    String msg = apiError(response, "Reputation unavailable");
+                    MAIN.post(() -> callback.onFailure(msg));
+                }
+            } catch (Exception e) {
+                MAIN.post(() -> callback.onFailure("Reputation server unavailable"));
+            } finally { if (c != null) c.disconnect(); }
+        });
+    }
 
     static void submitReview(String dealId, int rating, String comment, Callback callback) {
         JSONObject body = new JSONObject();
@@ -130,7 +170,7 @@ final class ReputationApiClient {
         c.setRequestMethod(method);
         c.setConnectTimeout(8000);
         c.setReadTimeout(10000);
-        c.setRequestProperty("Authorization", "Bearer " + token);
+        if (token != null && !token.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token);
         c.setRequestProperty("Accept", "application/json");
         if ("POST".equals(method)) { c.setDoOutput(true); c.setRequestProperty("Content-Type", "application/json; charset=utf-8"); }
         return c;
