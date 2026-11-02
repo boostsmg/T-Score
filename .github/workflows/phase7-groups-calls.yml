@@ -1,0 +1,133 @@
+name: Apply Phase 7 Groups and Calls
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/phase7-groups-calls.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply Phase 7 Android changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if new in s:
+                  return
+              if old not in s:
+                  raise SystemExit(f'pattern not found in {path}: {old[:100]!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          # Strings.
+          p = Path('android/app/src/main/res/values/strings.xml')
+          s = p.read_text()
+          block = '''\n    <string name="group_create_tip">Create a private group, choose members, and manage permissions from group info.</string>\n    <string name="group_members_selected">%1$d member(s) selected</string>\n    <string name="creating_group">Creating group…</string>\n    <string name="calls_one_to_one_only">Audio and video calls are available in 1-to-1 chats.</string>\n'''
+          if 'name="group_create_tip"' not in s:
+              s = s.replace('</resources>', block + '</resources>')
+              p.write_text(s)
+
+          # Group create layout: helper copy + selected count.
+          p = Path('android/app/src/main/res/layout/fragment_add_group.xml')
+          s = p.read_text()
+          if 'group_create_tip' not in s:
+              marker = '''                <TextView\n                    style="@style/sectionTitleStyle"\n                    android:layout_width="wrap_content"\n                    android:layout_height="wrap_content"\n                    android:text="@string/general" />'''
+              extra = marker + '''\n\n                <TextView\n                    android:layout_width="match_parent"\n                    android:layout_height="wrap_content"\n                    android:layout_marginTop="4dp"\n                    android:layout_marginBottom="8dp"\n                    android:text="@string/group_create_tip"\n                    android:textColor="@color/ts_text_subtitle"\n                    android:textSize="13sp" />'''
+              if marker not in s: raise SystemExit('general marker missing')
+              s = s.replace(marker, extra, 1)
+          if 'selectedMemberCount' not in s:
+              marker = '''                <TextView\n                    style="@style/sectionTitleStyle"\n                    android:layout_width="wrap_content"\n                    android:layout_height="wrap_content"\n                    android:layout_marginTop="@dimen/activity_vertical_margin"\n                    android:layout_marginStart="@dimen/label_h_padding"\n                    android:text="@string/add_members"\n                    />'''
+              extra = marker + '''\n\n                <TextView\n                    android:id="@+id/selectedMemberCount"\n                    android:layout_width="wrap_content"\n                    android:layout_height="wrap_content"\n                    android:layout_marginStart="@dimen/label_h_padding"\n                    android:layout_marginTop="2dp"\n                    android:layout_marginBottom="6dp"\n                    android:text="@string/group_members_selected"\n                    android:textColor="@color/ts_primary"\n                    android:textStyle="bold" />'''
+              if marker not in s: raise SystemExit('members marker missing')
+              s = s.replace(marker, extra, 1)
+          p.write_text(s)
+
+          # Group creation UX + race fix.
+          p = Path('android/app/src/main/java/co/tinode/tindroid/CreateGroupFragment.java')
+          s = p.read_text()
+          if 'private boolean mCreatingTopic' not in s:
+              s = s.replace('    private PromisedReply.FailureListener<ServerMessage> mFailureListener;\n',
+                            '    private PromisedReply.FailureListener<ServerMessage> mFailureListener;\n    private boolean mCreatingTopic = false;\n')
+          old = '''                    if (err instanceof NotConnectedException) {\n                        Toast.makeText(activity, R.string.no_connection, Toast.LENGTH_SHORT).show();\n                    } else {\n                        Toast.makeText(activity, R.string.action_failed, Toast.LENGTH_SHORT).show();\n                    }\n                    startActivity(new Intent(activity, ChatsActivity.class));'''
+          new = '''                    mCreatingTopic = false;\n                    View create = getView() != null ? getView().findViewById(R.id.goNext) : null;\n                    if (create != null) {\n                        create.setEnabled(true);\n                        create.setAlpha(1f);\n                    }\n                    if (err instanceof NotConnectedException) {\n                        Toast.makeText(activity, R.string.no_connection, Toast.LENGTH_SHORT).show();\n                    } else {\n                        Toast.makeText(activity, R.string.action_failed, Toast.LENGTH_SHORT).show();\n                    }'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          old = '''        mSelectedAdapter = new MembersAdapter(null,\n                (unique, pos) -> mContactsAdapter.toggleSelected(unique, pos), true);'''
+          new = '''        mSelectedAdapter = new MembersAdapter(null,\n                (unique, pos) -> {\n                    mContactsAdapter.toggleSelected(unique, pos);\n                    updateSelectedCount(view);\n                }, true);'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          old = '''            mContactsAdapter.toggleSelected(unique, position);\n        });'''
+          new = '''            mContactsAdapter.toggleSelected(unique, position);\n            updateSelectedCount(view);\n        });'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          if 'updateSelectedCount(view);\n\n        mContactsLoaderCallback' not in s:
+              s = s.replace('        rv.setAdapter(mContactsAdapter);\n\n        mContactsLoaderCallback',
+                            '        rv.setAdapter(mContactsAdapter);\n        updateSelectedCount(view);\n\n        mContactsLoaderCallback', 1)
+          old = '''        view.findViewById(R.id.goNext).setOnClickListener(v -> {\n            EditText titleEdit'''
+          new = '''        view.findViewById(R.id.goNext).setOnClickListener(v -> {\n            if (mCreatingTopic) {\n                return;\n            }\n            EditText titleEdit'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          old = '''            createTopic(activity, topicTitle, bmp, description, pcomment, isChannel,\n                    Cache.getTinode().parseTags(tags), members);'''
+          new = '''            mCreatingTopic = true;\n            v.setEnabled(false);\n            v.setAlpha(0.55f);\n            Toast.makeText(activity, R.string.creating_group, Toast.LENGTH_SHORT).show();\n            createTopic(activity, topicTitle, bmp, description, pcomment, isChannel,\n                    Cache.getTinode().parseTags(tags), members);'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          old = '''                                startActivity(intent);\n\n                                return null;'''
+          new = '''                                startActivity(intent);\n                                activity.finish();\n\n                                return null;'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          s = s.replace('\n\n        startActivity(new Intent(activity, ChatsActivity.class));\n    }', '\n    }', 1)
+          if 'private void updateSelectedCount' not in s:
+              insert = '''\n    private void updateSelectedCount(View root) {\n        if (root == null || mSelectedAdapter == null) {\n            return;\n        }\n        android.widget.TextView count = root.findViewById(R.id.selectedMemberCount);\n        if (count != null) {\n            count.setText(getString(R.string.group_members_selected, mSelectedAdapter.getAdded().length));\n        }\n    }\n\n'''
+              s = s.replace('    // Restarts the loader.', insert + '    // Restarts the loader.', 1)
+          p.write_text(s)
+
+          # Calls: import Menu, hide for non-P2P, and hard guard actions.
+          p = Path('android/app/src/main/java/co/tinode/tindroid/MessageActivity.java')
+          s = p.read_text()
+          if 'import android.view.Menu;' not in s:
+              s = s.replace('import android.view.MenuItem;\n', 'import android.view.Menu;\nimport android.view.MenuItem;\n')
+          if 'public boolean onPrepareOptionsMenu(@NonNull Menu menu)' not in s:
+              marker = '    @Override\n    public boolean onOptionsItemSelected(@NonNull MenuItem item) {'
+              method = '''    @Override\n    public boolean onPrepareOptionsMenu(@NonNull Menu menu) {\n        boolean p2pCall = mTopic != null && mTopic.isValid() && mTopic.isP2PType() && !mTopic.isDeleted();\n        MenuItem audio = menu.findItem(R.id.action_audio_call);\n        MenuItem video = menu.findItem(R.id.action_video_call);\n        if (audio != null) audio.setVisible(p2pCall);\n        if (video != null) video.setVisible(p2pCall);\n        return super.onPrepareOptionsMenu(menu);\n    }\n\n'''
+              if marker not in s: raise SystemExit('onOptionsItemSelected marker missing')
+              s = s.replace(marker, method + marker, 1)
+          old = '''            } else if (id == R.id.action_audio_call || id == R.id.action_video_call) {\n                try {'''
+          new = '''            } else if (id == R.id.action_audio_call || id == R.id.action_video_call) {\n                if (!mTopic.isP2PType()) {\n                    Toast.makeText(this, R.string.calls_one_to_one_only, Toast.LENGTH_SHORT).show();\n                    return true;\n                }\n                try {'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          if 'invalidateOptionsMenu();\n\n        mNewSubsAvailable' not in s:
+              s = s.replace('        mNewSubsAvailable = false;\n', '        invalidateOptionsMenu();\n\n        mNewSubsAvailable = false;\n', 1)
+          p.write_text(s)
+          PY
+
+      - name: Validate changed files
+        run: |
+          grep -q 'mCreatingTopic' android/app/src/main/java/co/tinode/tindroid/CreateGroupFragment.java
+          grep -q 'onPrepareOptionsMenu' android/app/src/main/java/co/tinode/tindroid/MessageActivity.java
+          grep -q 'selectedMemberCount' android/app/src/main/res/layout/fragment_add_group.xml
+          grep -q 'calls_one_to_one_only' android/app/src/main/res/values/strings.xml
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android
+          git commit -m 'Implement Phase 7 group and call hardening'
+          git push
