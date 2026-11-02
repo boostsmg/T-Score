@@ -285,7 +285,7 @@ public class Cache {
 
     public static int getCallAudioRoute() {
         if (sInstance.mCallInProgress != null) {
-            return sInstance.mCallInProgress.getCallAudioRoute();
+            return sInstance.mCallInProgress.getAudioRoute();
         }
         return CallAudioState.ROUTE_EARPIECE;
     }
