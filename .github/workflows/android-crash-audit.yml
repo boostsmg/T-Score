@@ -56,7 +56,7 @@ jobs:
 
             adb logcat -c
             adb shell am force-stop com.tscore.app || true
-            adb shell am start -W -n com.tscore.app/.CrashAuditChatsAlias > chats-start.log
+            adb shell am start -W -n com.tscore.app/co.tinode.tindroid.CrashAuditChatsAlias > chats-start.log
             ! grep -E 'SecurityException|Permission Denial|Error type' chats-start.log
             sleep 8
             adb logcat -d -v threadtime > chats.log
