@@ -24,6 +24,7 @@ func New(store Store, verifier TokenVerifier, adminKey string) http.Handler {
     h:=&Handler{store:store,verifier:verifier,adminKey:adminKey}; m:=http.NewServeMux()
     m.HandleFunc("POST /v1/reports",h.create)
     m.HandleFunc("GET /v1/reports/mine",h.mine)
+    m.HandleFunc("GET /internal/moderation",h.dashboard)
     m.HandleFunc("GET /internal/v1/reports",h.adminList)
     m.HandleFunc("POST /internal/v1/reports/{id}/decision",h.adminDecision)
     return m
