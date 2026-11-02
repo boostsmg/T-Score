@@ -37,7 +37,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             PACKAGE=com.tscore.app
             adb install -r apk/T-Score.apk
             adb logcat -c
@@ -48,7 +48,7 @@ jobs:
             echo "APP_PID=$pid"
             adb shell dumpsys activity activities | grep -E 'mResumedActivity|com.tscore.app|co.tinode.tindroid' | head -80 || true
             echo '=== CRASH TRACE ==='
-            adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: com\.tscore\.app|Caused by:|TScoreApp|InitRouterActivity|LoginActivity|ChatsActivity' | tail -400 || true
+            adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: com\.tscore\.app|Caused by:|TScoreApp|InitRouterActivity|LoginActivity|ChatsActivity|StackOverflowError' | tail -400 || true
             if [ -z "$pid" ]; then
               echo 'APP_PROCESS_DIED'
               exit 1
