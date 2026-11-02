@@ -23,8 +23,9 @@ const (
 )
 
 var (
-    ErrReportInvalid  = errors.New("invalid moderation report")
-    ErrReportNotFound = errors.New("moderation report not found")
+    ErrReportInvalid     = errors.New("invalid moderation report")
+    ErrReportNotFound    = errors.New("moderation report not found")
+    ErrReportRateLimited = errors.New("moderation report rate limited")
 )
 
 type ModerationReport struct {
