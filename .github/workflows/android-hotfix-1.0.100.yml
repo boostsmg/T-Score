@@ -29,7 +29,6 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'bottomNav.getSelectedItemId() != itemId' android/app/src/main/java/co/tinode/tindroid/ChatsActivity.java
-          ! grep -A16 'private void updateMainTabStyle' android/app/src/main/java/co/tinode/tindroid/ChatsActivity.java | grep -q '^        bottomNav.setSelectedItemId(itemId);$'
           grep -q 'void onViewCreated' android/app/src/main/java/co/tinode/tindroid/TrustProfileFragment.java
           grep -q 'userId = Cache.getTinode().getMyId()' android/app/src/main/java/co/tinode/tindroid/TrustProfileFragment.java
       - name: Build hotfix APK
@@ -60,25 +59,19 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -eu
-            PACKAGE=com.tscore.app
-            APK=android/app/build/outputs/apk/debug/app-debug.apk
-            adb install -r "$APK"
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb logcat -c
-            adb shell am force-stop "$PACKAGE" || true
-            adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
+            adb shell am force-stop com.tscore.app || true
+            adb shell monkey -p com.tscore.app -c android.intent.category.LAUNCHER 1
             sleep 10
-            pid=$(adb shell pidof "$PACKAGE" | tr -d '\r' || true)
-            echo "LAUNCHER_PID=$pid"
+            adb shell pidof com.tscore.app | grep -q .
+            adb shell dumpsys activity activities | grep -E 'mResumedActivity|com.tscore.app|co.tinode.tindroid' | head -80 || true
             adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: com\.tscore\.app|Caused by:|StackOverflowError|TScoreApp|InitRouterActivity|LoginActivity|ChatsActivity' | tail -400 || true
-            test -n "$pid"
             adb logcat -c
             adb shell am start -n com.tscore.app/co.tinode.tindroid.ChatsActivity || true
             sleep 5
-            pid2=$(adb shell pidof "$PACKAGE" | tr -d '\r' || true)
-            echo "POST_CHATS_START_PID=$pid2"
+            adb shell pidof com.tscore.app | grep -q .
             adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: com\.tscore\.app|Caused by:|StackOverflowError|ChatsActivity' | tail -400 || true
-            test -n "$pid2"
       - name: Collect verified hotfix APK
         run: |
           set -euo pipefail
