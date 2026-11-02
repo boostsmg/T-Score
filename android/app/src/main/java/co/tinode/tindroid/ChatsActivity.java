@@ -90,14 +90,14 @@ public class ChatsActivity extends BaseActivity
             }
             return false;
         });
-        // Set default selected item
-        bottomNav.setSelectedItemId(R.id.tabChats);
 
         FragmentManager fm = getSupportFragmentManager();
         if (fm.findFragmentById(R.id.contentFragment) == null) {
             showMainTab(FRAGMENT_CHATLIST);
         } else {
-            updateMainTabStyle(FRAGMENT_CHATLIST);
+            Fragment current = fm.findFragmentById(R.id.contentFragment);
+            String currentTag = current == null ? null : current.getTag();
+            updateMainTabStyle(TextUtils.isEmpty(currentTag) ? FRAGMENT_CHATLIST : currentTag);
         }
 
         mMeTopic = Cache.getTinode().getOrCreateMeTopic();
@@ -105,6 +105,12 @@ public class ChatsActivity extends BaseActivity
     }
 
     private void showMainTab(String tag) {
+        Fragment current = getSupportFragmentManager().findFragmentById(R.id.contentFragment);
+        if (current != null && tag.equals(current.getTag()) && current.isAdded()) {
+            updateMainTabStyle(tag);
+            return;
+        }
+
         Fragment fragment;
         String title;
         switch (tag) {
@@ -144,8 +150,14 @@ public class ChatsActivity extends BaseActivity
         else if (FRAGMENT_DEALS.equals(selected)) itemId = R.id.tabDeals;
         else if (FRAGMENT_PEOPLE.equals(selected)) itemId = R.id.tabPeople;
         else if (FRAGMENT_TRUST_PROFILE.equals(selected)) itemId = R.id.tabProfile;
-        else itemId = R.id.tabChats;
-        bottomNav.setSelectedItemId(itemId);
+        else return;
+
+        // Do not re-select an already-selected item. BottomNavigationView invokes
+        // OnItemSelectedListener from setSelectedItemId(); re-selecting here used
+        // to recurse showMainTab() -> updateMainTabStyle() until StackOverflow.
+        if (bottomNav.getSelectedItemId() != itemId) {
+            bottomNav.setSelectedItemId(itemId);
+        }
     }
 
     /**
