@@ -1,0 +1,83 @@
+name: Apply Phase 5 Search and Safety
+
+on:
+  push:
+    paths:
+      - '.github/workflows/phase5-search-safety.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply functional messaging patch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          # MessagesAdapter: searchable loaded messages.
+          p = Path('android/app/src/main/java/co/tinode/tindroid/MessagesAdapter.java')
+          s = p.read_text()
+          marker = '    private String messageFrom(StoredMessage msg) {'
+          insert = '''    int findMessageContaining(String query, int startPosition) {\n        if (TextUtils.isEmpty(query) || mCursor == null) {\n            return -1;\n        }\n        final String needle = query.trim().toLowerCase(java.util.Locale.ROOT);\n        final int count = getItemCount();\n        if (count <= 0) {\n            return -1;\n        }\n        int start = Math.max(0, Math.min(startPosition, count));\n        for (int pass = 0; pass < 2; pass++) {\n            int from = pass == 0 ? start : 0;\n            int to = pass == 0 ? count : Math.min(start, count);\n            for (int i = from; i < to; i++) {\n                StoredMessage msg = getMessage(i);\n                if (msg == null || msg.content == null) {\n                    continue;\n                }\n                String text = msg.content.toMarkdown(false);\n                if (!TextUtils.isEmpty(text) && text.toLowerCase(java.util.Locale.ROOT).contains(needle)) {\n                    return i;\n                }\n            }\n            if (start == 0) {\n                break;\n            }\n        }\n        return -1;\n    }\n\n'''
+          if 'int findMessageContaining(String query' not in s:
+              s = s.replace(marker, insert + marker)
+          p.write_text(s)
+
+          # MessagesFragment: search dialog, next-match behavior and highlight.
+          p = Path('android/app/src/main/java/co/tinode/tindroid/MessagesFragment.java')
+          s = p.read_text()
+          field_marker = '    private PromisedReply.FailureListener<ServerMessage> mFailureListener;'
+          fields = '''    private String mSearchQuery = "";\n    private int mSearchPosition = -1;\n\n'''
+          if 'mSearchPosition' not in s:
+              s = s.replace(field_marker, fields + field_marker)
+          method_marker = '    @Override\n    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,'
+          method = '''    public void showMessageSearchDialog() {\n        if (!isAdded() || mMessagesAdapter == null || mRecyclerView == null) {\n            return;\n        }\n        final EditText input = new EditText(requireContext());\n        input.setSingleLine(true);\n        input.setHint("Search messages");\n        input.setText(mSearchQuery);\n        input.setSelection(input.length());\n        new AlertDialog.Builder(requireContext())\n                .setTitle("Search messages")\n                .setView(input)\n                .setNegativeButton(android.R.string.cancel, null)\n                .setPositiveButton("Search / Next", (dialog, which) -> {\n                    String query = input.getText() == null ? "" : input.getText().toString().trim();\n                    if (TextUtils.isEmpty(query)) {\n                        Toast.makeText(requireContext(), "Enter text to search", Toast.LENGTH_SHORT).show();\n                        return;\n                    }\n                    int start = query.equalsIgnoreCase(mSearchQuery) ? mSearchPosition + 1 : 0;\n                    int pos = mMessagesAdapter.findMessageContaining(query, start);\n                    if (pos < 0) {\n                        Toast.makeText(requireContext(), "No match in loaded messages", Toast.LENGTH_SHORT).show();\n                        mSearchQuery = query;\n                        mSearchPosition = -1;\n                        return;\n                    }\n                    mSearchQuery = query;\n                    mSearchPosition = pos;\n                    mRecyclerView.smoothScrollToPosition(pos);\n                    mRecyclerView.postDelayed(() -> {\n                        RecyclerView.ViewHolder vh = mRecyclerView.findViewHolderForAdapterPosition(pos);\n                        if (vh != null) {\n                            vh.itemView.animate().alpha(0.45f).setDuration(120).withEndAction(() ->\n                                    vh.itemView.animate().alpha(1f).setDuration(220).start()).start();\n                        }\n                    }, 350);\n                })\n                .show();\n    }\n\n'''
+          if 'showMessageSearchDialog()' not in s:
+              s = s.replace(method_marker, method + method_marker)
+          p.write_text(s)
+
+          # MessageActivity: toolbar profile click + search and safety shortcuts.
+          p = Path('android/app/src/main/java/co/tinode/tindroid/MessageActivity.java')
+          s = p.read_text()
+          nav = '''        toolbar.setNavigationOnClickListener(v -> {'''
+          profile = '''        toolbar.setOnClickListener(v -> {\n            if (mTopic != null && mTopic.isValid() && isFragmentVisible(FRAGMENT_MESSAGES)) {\n                showFragment(FRAGMENT_INFO, null, true);\n            }\n        });\n\n'''
+          if 'toolbar.setOnClickListener(v -> {' not in s:
+              s = s.replace(nav, profile + nav)
+          old = '''        if (id == R.id.action_view_contact) {\n            showFragment(FRAGMENT_INFO, null, true);\n            return true;\n        } else if (mTopic != null) {'''
+          new = '''        if (id == R.id.action_view_contact) {\n            showFragment(FRAGMENT_INFO, null, true);\n            return true;\n        } else if (id == R.id.action_search_messages) {\n            Fragment fragment = getSupportFragmentManager().findFragmentByTag(FRAGMENT_MESSAGES);\n            if (fragment instanceof MessagesFragment) {\n                ((MessagesFragment) fragment).showMessageSearchDialog();\n            }\n            return true;\n        } else if (id == R.id.action_safety) {\n            showFragment(FRAGMENT_PERMISSIONS, null, true);\n            return true;\n        } else if (mTopic != null) {'''
+          if 'R.id.action_search_messages' not in s:
+              s = s.replace(old, new)
+          p.write_text(s)
+
+          # Topic menu: search in toolbar, block/report in overflow.
+          p = Path('android/app/src/main/res/menu/menu_topic.xml')
+          s = p.read_text()
+          anchor = '''    <item\n        android:id="@+id/action_view_contact"'''
+          items = '''    <item\n        android:id="@+id/action_search_messages"\n        android:orderInCategory="90"\n        android:title="Search messages"\n        android:icon="@drawable/ic_search"\n        app:iconTint="?android:textColorPrimary"\n        app:showAsAction="ifRoom" />\n\n    <item\n        android:id="@+id/action_safety"\n        android:orderInCategory="100"\n        android:title="Block or report"\n        android:icon="@drawable/ic_block"\n        app:showAsAction="never" />\n\n'''
+          if 'action_search_messages' not in s:
+              s = s.replace(anchor, items + anchor)
+          p.write_text(s)
+          PY
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/co/tinode/tindroid/MessagesAdapter.java \
+                  android/app/src/main/java/co/tinode/tindroid/MessagesFragment.java \
+                  android/app/src/main/java/co/tinode/tindroid/MessageActivity.java \
+                  android/app/src/main/res/menu/menu_topic.xml
+          if git diff --cached --quiet; then
+            echo "No changes required"
+            exit 0
+          fi
+          git commit -m "Add T-Score message search and safety shortcuts"
+          git push
