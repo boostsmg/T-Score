@@ -8,6 +8,7 @@ on:
       - 'server/tscoreapi/**'
       - 'server/tscoredealapi/**'
       - 'server/tscorereputationapi/**'
+      - 'server/tscoreverificationapi/**'
       - 'server/tscoreauth/**'
       - 'server/cmd/tscore-trust-api/**'
       - '.github/workflows/trust-core-test.yml'
@@ -25,9 +26,9 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      - name: Test trust, deals, reputation and auth core/API
-        run: go test ./tscore ./tscoreapi ./tscoredealapi ./tscorereputationapi ./tscoreauth
-      - name: Build production Linux trust/deals/reputation API
+      - name: Test trust, deals, reputation, verification and auth core/API
+        run: go test ./tscore ./tscoreapi ./tscoredealapi ./tscorereputationapi ./tscoreverificationapi ./tscoreauth
+      - name: Build production Linux trust/deals/reputation/verification API
         run: |
           mkdir -p ../dist-trust-api
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../dist-trust-api/tscore-trust-api ./cmd/tscore-trust-api
