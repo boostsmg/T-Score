@@ -1,0 +1,90 @@
+name: Finalize Android on Latest Main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-android-rerun.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply final Android patches
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('android/app/src/main/java/co/tinode/tindroid/TopicInfoFragment.java');s=p.read_text()
+          old='''                    public PromisedReply<ServerMessage> onSuccess(ServerMessage result) {\n                        Intent intent = new Intent(activity, ChatsActivity.class);\n                        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);\n                        startActivity(intent);\n                        activity.finish();\n                        return null;\n                    }'''
+          new='''                    public PromisedReply<ServerMessage> onSuccess(ServerMessage result) {\n                        activity.runOnUiThread(() -> {\n                            if (isAdded()) {\n                                notifyDataSetChanged();\n                                Toast.makeText(activity, R.string.group_updated, Toast.LENGTH_SHORT).show();\n                            }\n                        });\n                        return null;\n                    }'''
+          if old in s:s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('android/app/src/main/java/co/tinode/tindroid/CallActivity.java');s=p.read_text()
+          if 'import android.widget.Toast;' not in s:s=s.replace('import android.view.WindowManager;\n','import android.view.WindowManager;\nimport android.widget.Toast;\n')
+          marker='''        if (mTopic == null) {\n            Log.e(TAG, "Invalid topic '" + mTopicName + "'");\n            declineCall();\n            return;\n        }\n'''
+          guard=marker+'''        if (!mTopic.isP2PType()) {\n            Log.w(TAG, "Rejecting call for non-P2P topic: " + mTopicName);\n            Toast.makeText(this, R.string.calls_one_to_one_only, Toast.LENGTH_SHORT).show();\n            finish();\n            return;\n        }\n'''
+          if 'Rejecting call for non-P2P topic' not in s and marker in s:s=s.replace(marker,guard,1)
+          p.write_text(s)
+
+          p=Path('android/app/src/main/res/values/strings.xml');s=p.read_text()
+          if 'name="group_updated"' not in s:s=s.replace('</resources>','    <string name="group_updated">Group updated</string>\n</resources>')
+          if 'name="calls_one_to_one_only"' not in s:s=s.replace('</resources>','    <string name="calls_one_to_one_only">Calls are available in one-to-one chats only</string>\n</resources>')
+          p.write_text(s)
+
+          p=Path('android/app/src/main/java/co/tinode/tindroid/TrustProfileFragment.java');s=p.read_text()
+          if 'private String userId;' not in s:s=s.replace('    private String username;\n','    private String username;\n    private String userId;\n',1)
+          anchor='''        email = PreferenceManager.getDefaultSharedPreferences(requireContext())\n                .getString("tscore_signup_email", "");\n'''
+          if 'userId = Cache.getTinode().getMyId();' not in s and anchor in s:s=s.replace(anchor,anchor+'        userId = Cache.getTinode().getMyId();\n',1)
+          start=s.index('    private void loadLiveTrust() {');end=s.index('\n    private void loadVerificationRequests()',start)
+          repl='''    private void loadLiveTrust() {\n        if (TextUtils.isEmpty(userId) || !userId.startsWith("usr")) return;\n        final String requestedId = userId;\n        TrustApiClient.fetch(requestedId, new TrustApiClient.Callback() {\n            @Override public void onSuccess(TrustApiClient.Result result) {\n                if (!isAdded() || getView() == null || !requestedId.equals(userId)) return;\n                renderLiveResult(result);\n            }\n            @Override public void onError(Exception error) {\n                if (!isAdded() || getView() == null || !requestedId.equals(userId)) return;\n                Chip badge = requireView().findViewById(R.id.profileTrustBadge);\n                TextView status = requireView().findViewById(R.id.trustScoreStatus);\n                TextView value = requireView().findViewById(R.id.trustScoreValue);\n                if (badge != null) badge.setText("OFFLINE");\n                if (value != null) value.setText("— / " + TrustScoreModel.maximumScore());\n                if (status != null) status.setText("Could not refresh T-Score. Your account and chats are unaffected.");\n            }\n        });\n    }\n'''
+          s=s[:start]+repl+s[end:]
+          old='''            if (earned > 0) itemStatus = "Verified / earned";\n            else if ("Email".equals(item.title) && !TextUtils.isEmpty(email)) itemStatus = "Added · verification pending";\n            else itemStatus = requestAwareStatus(item.title, localFallbackStatus(item.title));'''
+          new='''            if ("Account standing".equals(item.title) && !"GOOD".equals(result.standing)) itemStatus = result.standing;\n            else if (earned > 0) itemStatus = "Verified / earned";\n            else if ("Email".equals(item.title) && !TextUtils.isEmpty(email)) itemStatus = "Added · verification pending";\n            else itemStatus = requestAwareStatus(item.title, localFallbackStatus(item.title));'''
+          if old in s:s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android SDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - name: Compile final Android
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug -PTSCORE_VERSION_CODE=1099 -PTSCORE_VERSION_NAME=1.0.99
+      - name: Commit verified source changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Finalize groups calls and UID trust profile'
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Collect final APK
+        run: |
+          mkdir -p dist-final-android
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist-final-android/T-Score.apk
+          sha256sum dist-final-android/T-Score.apk > dist-final-android/T-Score.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: T-Score-Final-Android
+          path: dist-final-android/*
+          retention-days: 30
