@@ -5,7 +5,7 @@ import (
     "crypto/subtle"
     "encoding/json"
     "errors"
-    "http"
+    "net/http"
     "strings"
 
     "github.com/tinode/chat/tscore"
