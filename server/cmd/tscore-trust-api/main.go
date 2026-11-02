@@ -16,6 +16,7 @@ import (
 	"github.com/tinode/chat/tscoremoderationapi"
 	"github.com/tinode/chat/tscorereputationapi"
 	"github.com/tinode/chat/tscorestandingapi"
+	"github.com/tinode/chat/tscoretrustapi"
 	"github.com/tinode/chat/tscoreverificationapi"
 )
 
@@ -57,7 +58,8 @@ func main() {
 		log.Print("Verification evidence uploads disabled: encryption key not configured")
 	}
 
-	trustHandler := tscoreapi.New(trustStore, adminKey)
+	legacyTrustHandler := tscoreapi.New(trustStore, adminKey)
+	canonicalTrustHandler := tscoretrustapi.New(verificationStore, dealStore, standingStore)
 	standingHandler := tscorestandingapi.New(standingStore, adminKey)
 	var dealHandler http.Handler = tscoredealapi.New(dealStore, adminKey)
 	var reputationHandler http.Handler = http.NotFoundHandler()
@@ -83,6 +85,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	mux.Handle("/v1/trust/users/", canonicalTrustHandler)
 	mux.Handle("/v1/deals", dealHandler)
 	mux.Handle("/v1/deals/", dealHandler)
 	mux.Handle("/v1/reputation/", reputationHandler)
@@ -99,7 +102,7 @@ func main() {
 	mux.Handle("/internal/v1/deals", dealHandler)
 	mux.Handle("/internal/v1/deals/", dealHandler)
 	mux.Handle("/internal/v1/users/", dealHandler)
-	mux.Handle("/", trustHandler)
+	mux.Handle("/", legacyTrustHandler)
 
 	srv := &http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,ReadTimeout:15*time.Second,WriteTimeout:15*time.Second,IdleTimeout:60*time.Second}
 	log.Printf("T-Score trust/deals/reputation/verification/moderation/standing API listening on %s", addr)
