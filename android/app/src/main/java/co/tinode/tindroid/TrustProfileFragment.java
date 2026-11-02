@@ -15,6 +15,8 @@ import androidx.preference.PreferenceManager;
 
 import com.google.android.material.chip.Chip;
 
+import java.util.Locale;
+
 public class TrustProfileFragment extends Fragment {
     private LinearLayout verificationList;
     private String username;
@@ -26,6 +28,7 @@ public class TrustProfileFragment extends Fragment {
         verificationList = root.findViewById(R.id.verificationList);
         renderLocalState();
         loadLiveTrust();
+        loadReputation();
         return root;
     }
 
@@ -35,6 +38,7 @@ public class TrustProfileFragment extends Fragment {
         if (verificationList != null) {
             renderLocalState();
             loadLiveTrust();
+            loadReputation();
         }
     }
 
@@ -52,12 +56,16 @@ public class TrustProfileFragment extends Fragment {
         Chip trustBadge = requireView().findViewById(R.id.profileTrustBadge);
         TextView trustScoreValue = requireView().findViewById(R.id.trustScoreValue);
         TextView trustScoreStatus = requireView().findViewById(R.id.trustScoreStatus);
+        TextView reputationRating = requireView().findViewById(R.id.reputationRating);
+        TextView reputationStats = requireView().findViewById(R.id.reputationStats);
 
         if (profileName != null) profileName.setText(TextUtils.isEmpty(username) ? "T-Score User" : username);
         if (profileUsername != null) profileUsername.setText("@" + (TextUtils.isEmpty(username) ? "tscore-user" : username));
         if (trustBadge != null) trustBadge.setText("LOADING");
         if (trustScoreValue != null) trustScoreValue.setText("— / " + TrustScoreModel.maximumScore());
         if (trustScoreStatus != null) trustScoreStatus.setText("Loading your verified T-Score from server…");
+        if (reputationRating != null) reputationRating.setText("Loading reputation…");
+        if (reputationStats != null) reputationStats.setText("Deal history is linked to your permanent T-Score user ID.");
 
         for (TrustScoreModel.Item item : TrustScoreModel.items()) {
             addCheck(item.title, localFallbackStatus(item.title), "+" + item.maxPoints + " points");
@@ -93,6 +101,36 @@ public class TrustProfileFragment extends Fragment {
                 if (badge != null) badge.setText("OFFLINE");
                 if (value != null) value.setText("— / " + TrustScoreModel.maximumScore());
                 if (status != null) status.setText("Could not refresh T-Score. Your account and chats are unaffected.");
+            }
+        });
+    }
+
+    private void loadReputation() {
+        String userId = Cache.getTinode().getMyId();
+        if (TextUtils.isEmpty(userId) || !userId.startsWith("usr")) return;
+        final String requestedId = userId;
+        ReputationApiClient.fetchSummary(userId, new ReputationApiClient.SummaryCallback() {
+            @Override public void onSuccess(ReputationApiClient.Summary summary) {
+                if (!isAdded() || getView() == null || !requestedId.equals(Cache.getTinode().getMyId())) return;
+                TextView rating = requireView().findViewById(R.id.reputationRating);
+                TextView stats = requireView().findViewById(R.id.reputationStats);
+                if (rating != null) {
+                    if (summary.reviewCount > 0) rating.setText(String.format(Locale.US, "★ %.1f / 5", summary.averageRating));
+                    else rating.setText("No ratings yet");
+                }
+                if (stats != null) {
+                    stats.setText(summary.reviewCount + (summary.reviewCount == 1 ? " review" : " reviews") +
+                            " • " + summary.completedDeals + " completed deals" +
+                            " • " + summary.disputedDeals + " disputed deals");
+                }
+            }
+
+            @Override public void onFailure(String message) {
+                if (!isAdded() || getView() == null) return;
+                TextView rating = requireView().findViewById(R.id.reputationRating);
+                TextView stats = requireView().findViewById(R.id.reputationStats);
+                if (rating != null) rating.setText("Reputation offline");
+                if (stats != null) stats.setText("Reputation will refresh when the T-Score API is available.");
             }
         });
     }
@@ -151,8 +189,7 @@ public class TrustProfileFragment extends Fragment {
     }
 
     private void addCheck(String name, String status, String points) {
-        View v = LayoutInflater.from(requireContext())
-                .inflate(R.layout.item_verification_check, verificationList, false);
+        View v = LayoutInflater.from(requireContext()).inflate(R.layout.item_verification_check, verificationList, false);
         TextView title = v.findViewById(R.id.verifyTitle);
         TextView stat = v.findViewById(R.id.verifyStatus);
         TextView pts = v.findViewById(R.id.verifyPoints);
