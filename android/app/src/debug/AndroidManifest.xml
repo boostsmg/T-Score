@@ -2,6 +2,14 @@
 
     <application android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher"
-        android:testOnly="false" />
+        android:testOnly="false">
+
+        <!-- Debug-only exported alias used by CI to launch ChatsActivity directly.
+             Production release builds do not include this alias. -->
+        <activity-alias
+            android:name=".CrashAuditChatsAlias"
+            android:targetActivity=".ChatsActivity"
+            android:exported="true" />
+    </application>
 
 </manifest>
