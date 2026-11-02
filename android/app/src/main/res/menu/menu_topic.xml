@@ -16,6 +16,21 @@
     </group>
     
     <item
+        android:id="@+id/action_search_messages"
+        android:orderInCategory="90"
+        android:title="Search messages"
+        android:icon="@drawable/ic_search"
+        app:iconTint="?android:textColorPrimary"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_safety"
+        android:orderInCategory="100"
+        android:title="Block or report"
+        android:icon="@drawable/ic_block"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_view_contact"
         android:orderInCategory="101"
         android:title="@string/action_view_details"

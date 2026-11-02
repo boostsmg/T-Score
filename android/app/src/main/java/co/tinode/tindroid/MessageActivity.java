@@ -211,6 +211,12 @@ public class MessageActivity extends BaseActivity
             ab.setDisplayHomeAsUpEnabled(true);
             ab.setDisplayShowHomeEnabled(true);
         }
+        toolbar.setOnClickListener(v -> {
+            if (mTopic != null && mTopic.isValid() && isFragmentVisible(FRAGMENT_MESSAGES)) {
+                showFragment(FRAGMENT_INFO, null, true);
+            }
+        });
+
         toolbar.setNavigationOnClickListener(v -> {
             if (isFragmentVisible(FRAGMENT_MESSAGES) || isFragmentVisible(FRAGMENT_INVALID)) {
                 Intent intent = new Intent(MessageActivity.this, ChatsActivity.class);
@@ -598,6 +604,15 @@ public class MessageActivity extends BaseActivity
         int id = item.getItemId();
         if (id == R.id.action_view_contact) {
             showFragment(FRAGMENT_INFO, null, true);
+            return true;
+        } else if (id == R.id.action_search_messages) {
+            Fragment fragment = getSupportFragmentManager().findFragmentByTag(FRAGMENT_MESSAGES);
+            if (fragment instanceof MessagesFragment) {
+                ((MessagesFragment) fragment).showMessageSearchDialog();
+            }
+            return true;
+        } else if (id == R.id.action_safety) {
+            showFragment(FRAGMENT_PERMISSIONS, null, true);
             return true;
         } else if (mTopic != null) {
             if (id == R.id.action_archive) {

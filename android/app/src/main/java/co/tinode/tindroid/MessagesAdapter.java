@@ -473,6 +473,36 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesAdapter.ViewHo
         }
     }
 
+    int findMessageContaining(String query, int startPosition) {
+        if (TextUtils.isEmpty(query) || mCursor == null) {
+            return -1;
+        }
+        final String needle = query.trim().toLowerCase(java.util.Locale.ROOT);
+        final int count = getItemCount();
+        if (count <= 0) {
+            return -1;
+        }
+        int start = Math.max(0, Math.min(startPosition, count));
+        for (int pass = 0; pass < 2; pass++) {
+            int from = pass == 0 ? start : 0;
+            int to = pass == 0 ? count : Math.min(start, count);
+            for (int i = from; i < to; i++) {
+                StoredMessage msg = getMessage(i);
+                if (msg == null || msg.content == null) {
+                    continue;
+                }
+                String text = msg.content.toMarkdown(false);
+                if (!TextUtils.isEmpty(text) && text.toLowerCase(java.util.Locale.ROOT).contains(needle)) {
+                    return i;
+                }
+            }
+            if (start == 0) {
+                break;
+            }
+        }
+        return -1;
+    }
+
     private String messageFrom(StoredMessage msg) {
         Tinode tinode =  Cache.getTinode();
         String uname = null;

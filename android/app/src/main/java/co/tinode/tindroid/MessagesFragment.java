@@ -178,6 +178,9 @@ public class MessagesFragment extends Fragment implements MenuProvider {
 
     private int mVisibleSendPanel = R.id.sendMessagePanel;
 
+    private String mSearchQuery = "";
+    private int mSearchPosition = -1;
+
     private PromisedReply.FailureListener<ServerMessage> mFailureListener;
 
     private final ActivityResultLauncher<String> mFileOpenerRequestPermissionLauncher =
@@ -298,6 +301,47 @@ public class MessagesFragment extends Fragment implements MenuProvider {
         // Show attachment preview.
         activity.showFragment(isVideo ? MessageActivity.FRAGMENT_VIEW_VIDEO :
                 MessageActivity.FRAGMENT_VIEW_IMAGE, args, true);
+    }
+
+    public void showMessageSearchDialog() {
+        if (!isAdded() || mMessagesAdapter == null || mRecyclerView == null) {
+            return;
+        }
+        final EditText input = new EditText(requireContext());
+        input.setSingleLine(true);
+        input.setHint("Search messages");
+        input.setText(mSearchQuery);
+        input.setSelection(input.length());
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Search messages")
+                .setView(input)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton("Search / Next", (dialog, which) -> {
+                    String query = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (TextUtils.isEmpty(query)) {
+                        Toast.makeText(requireContext(), "Enter text to search", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    int start = query.equalsIgnoreCase(mSearchQuery) ? mSearchPosition + 1 : 0;
+                    int pos = mMessagesAdapter.findMessageContaining(query, start);
+                    if (pos < 0) {
+                        Toast.makeText(requireContext(), "No match in loaded messages", Toast.LENGTH_SHORT).show();
+                        mSearchQuery = query;
+                        mSearchPosition = -1;
+                        return;
+                    }
+                    mSearchQuery = query;
+                    mSearchPosition = pos;
+                    mRecyclerView.smoothScrollToPosition(pos);
+                    mRecyclerView.postDelayed(() -> {
+                        RecyclerView.ViewHolder vh = mRecyclerView.findViewHolderForAdapterPosition(pos);
+                        if (vh != null) {
+                            vh.itemView.animate().alpha(0.45f).setDuration(120).withEndAction(() ->
+                                    vh.itemView.animate().alpha(1f).setDuration(220).start()).start();
+                        }
+                    }, 350);
+                })
+                .show();
     }
 
     @Override
