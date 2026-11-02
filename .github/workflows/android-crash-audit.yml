@@ -45,33 +45,19 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -eu
-            APK=android/app/build/outputs/apk/debug/app-debug.apk
-            adb install -r "$APK"
-
-            check_fatal() {
-              LOGFILE="$1"
-              if grep -E 'FATAL EXCEPTION|Process: com\.tscore\.app.*has died|StackOverflowError' "$LOGFILE"; then
-                echo 'Fatal Android crash detected'
-                exit 1
-              fi
-            }
-
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb logcat -c
             adb shell am force-stop com.tscore.app || true
             adb shell monkey -p com.tscore.app -c android.intent.category.LAUNCHER 1
             sleep 8
             adb logcat -d -v threadtime > launcher.log
-            check_fatal launcher.log
+            ! grep -E 'FATAL EXCEPTION|Process: com\.tscore\.app.*has died|StackOverflowError' launcher.log
             adb shell pidof com.tscore.app | grep -q .
-
-            # Exercise logged-in shell directly. With no valid local session it must
-            # recover to LoginActivity instead of killing the process.
             adb logcat -c
             adb shell am start -n com.tscore.app/co.tinode.tindroid.ChatsActivity || true
             sleep 8
             adb logcat -d -v threadtime > chats.log
-            check_fatal chats.log
+            ! grep -E 'FATAL EXCEPTION|Process: com\.tscore\.app.*has died|StackOverflowError' chats.log
             adb shell pidof com.tscore.app | grep -q .
             adb shell dumpsys activity activities | grep -E 'mResumedActivity|LoginActivity|ChatsActivity|com.tscore.app' | head -100 || true
       - name: Upload audit APK
