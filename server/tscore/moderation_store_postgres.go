@@ -46,8 +46,24 @@ func newReportID() (string, error) {
 
 func (s *ModerationStore) CreateReport(ctx context.Context, reporter, target, topic string, reason ReportReason, details string) (ModerationReport, error) {
     if err := ValidateReportInput(reporter, target, reason, details); err != nil { return ModerationReport{}, err }
-    id, err := newReportID(); if err != nil { return ModerationReport{}, err }
     reporter, target, topic, details = strings.TrimSpace(reporter), strings.TrimSpace(target), strings.TrimSpace(topic), strings.TrimSpace(details)
+
+    // Abuse controls: max 10 reports per reporter per rolling hour, and no more than
+    // one report against the same target every 10 minutes. This limits spam while
+    // preserving a user's ability to report multiple distinct urgent cases.
+    var hourlyCount int
+    if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM moderation_reports WHERE reporter_id=$1 AND created_at > NOW() - INTERVAL '1 hour'`, reporter).Scan(&hourlyCount); err != nil {
+        return ModerationReport{}, err
+    }
+    if hourlyCount >= 10 { return ModerationReport{}, ErrReportRateLimited }
+
+    var sameTargetCount int
+    if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM moderation_reports WHERE reporter_id=$1 AND target_id=$2 AND created_at > NOW() - INTERVAL '10 minutes'`, reporter, target).Scan(&sameTargetCount); err != nil {
+        return ModerationReport{}, err
+    }
+    if sameTargetCount > 0 { return ModerationReport{}, ErrReportRateLimited }
+
+    id, err := newReportID(); if err != nil { return ModerationReport{}, err }
     var r ModerationReport
     err = s.pool.QueryRow(ctx, `INSERT INTO moderation_reports(id,reporter_id,target_id,topic_name,reason,details,status)
 VALUES($1,$2,$3,$4,$5,$6,'OPEN')
