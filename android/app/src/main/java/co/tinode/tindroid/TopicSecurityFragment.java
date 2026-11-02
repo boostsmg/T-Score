@@ -3,13 +3,17 @@ package co.tinode.tindroid;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import java.util.Collection;
 import java.util.HashMap;
 
 import androidx.annotation.NonNull;
@@ -49,7 +53,7 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
     }
 
     @Override
-    public void onViewCreated(@NonNull View fragment, Bundle savedInstance) {
+    public void onViewCreated(@NonNull View fragment, Bundle savedInstanceState) {
         final Activity activity = requireActivity();
 
         Toolbar toolbar = activity.findViewById(R.id.toolbar);
@@ -59,7 +63,6 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
 
         mFailureListener = new UiUtils.ToastFailureListener(activity);
 
-        // Set up listeners
         fragment.findViewById(R.id.permissionsSingle).setOnClickListener(v ->
                 UiUtils.showEditPermissions(activity, mTopic, mTopic.getAccessMode().getWant(), null,
                     Const.ACTION_UPDATE_SELF_SUB,
@@ -106,23 +109,123 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
                     R.string.confirm_contact_ban, ACTION_BAN_TOPIC);
         });
 
-        final View.OnClickListener reportListener = view -> {
-            VxCard pub = mTopic.getPub();
-            String topicTitle = pub != null ? pub.fn : null;
-            topicTitle = TextUtils.isEmpty(topicTitle) ?
-                    activity.getString(R.string.placeholder_topic_title) :
-                    topicTitle;
-            showConfirmationDialog(topicTitle, R.string.block_and_report,
-                    R.string.confirm_report, ACTION_REPORT);
-        };
-
+        final View.OnClickListener reportListener = view -> showReportReasonDialog();
         fragment.findViewById(R.id.buttonReportContact).setOnClickListener(reportListener);
         fragment.findViewById(R.id.buttonReportGroup).setOnClickListener(reportListener);
+        fragment.findViewById(R.id.buttonReportChannel).setOnClickListener(reportListener);
+    }
+
+    private void showReportReasonDialog() {
+        final FragmentActivity activity = requireActivity();
+        if (mTopic == null || activity.isFinishing() || activity.isDestroyed()) {
+            return;
+        }
+
+        final String[] labels = new String[]{
+                activity.getString(R.string.ts_report_reason_scam),
+                activity.getString(R.string.ts_report_reason_harassment),
+                activity.getString(R.string.ts_report_reason_impersonation),
+                activity.getString(R.string.ts_report_reason_spam),
+                activity.getString(R.string.ts_report_reason_other)
+        };
+        final String[] values = new String[]{"SCAM", "HARASSMENT", "IMPERSONATION", "SPAM", "OTHER"};
+
+        new AlertDialog.Builder(activity)
+                .setTitle(R.string.ts_report_reason_title)
+                .setItems(labels, (dialog, which) -> showReportDetailsDialog(values[which]))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void showReportDetailsDialog(String reason) {
+        final FragmentActivity activity = requireActivity();
+        final EditText input = new EditText(activity);
+        input.setHint(R.string.ts_report_details_hint);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES |
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setMinLines(3);
+        input.setMaxLines(6);
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        input.setPadding(pad, pad / 2, pad, pad / 2);
+
+        new AlertDialog.Builder(activity)
+                .setTitle(R.string.ts_report_details_title)
+                .setView(input)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.ts_report_action, (dialog, which) ->
+                        submitModerationReport(reason, input.getText() == null ? "" : input.getText().toString()))
+                .show();
+    }
+
+    @SuppressWarnings("unchecked")
+    private String reportTargetId() {
+        if (mTopic == null) {
+            return null;
+        }
+        if (mTopic.isP2PType()) {
+            Collection<Subscription<VxCard, ?>> subs = (Collection<Subscription<VxCard, ?>>) (Collection<?>) mTopic.getSubscriptions();
+            if (subs != null) {
+                for (Subscription<VxCard, ?> sub : subs) {
+                    if (sub != null && !TextUtils.isEmpty(sub.user) && !Cache.getTinode().isMe(sub.user)) {
+                        return sub.user;
+                    }
+                }
+            }
+        }
+        // Groups/channels are moderated by topic id.
+        return mTopic.getName();
+    }
+
+    private void submitModerationReport(String reason, String details) {
+        final FragmentActivity activity = requireActivity();
+        final String target = reportTargetId();
+        final String topicName = mTopic != null ? mTopic.getName() : "";
+
+        ModerationApiClient.submit(target, topicName, reason, details, new ModerationApiClient.Callback() {
+            @Override
+            public void onSuccess(String reportId) {
+                Toast.makeText(activity, R.string.ts_report_submitted, Toast.LENGTH_SHORT).show();
+                performTinodeReportAndBlock();
+            }
+
+            @Override
+            public void onFailure(String message) {
+                Toast.makeText(activity, R.string.ts_report_saved_failed, Toast.LENGTH_LONG).show();
+                performTinodeReportAndBlock();
+            }
+        });
+    }
+
+    private void performTinodeReportAndBlock() {
+        if (mTopic == null) {
+            return;
+        }
+        HashMap<String, Object> json = new HashMap<>();
+        json.put("action", "report");
+        json.put("target", mTopic.getName());
+        Drafty msg = new Drafty().attachJSON(json);
+        HashMap<String,Object> head = new HashMap<>();
+        head.put("mime", Drafty.MIME_TYPE);
+        Cache.getTinode().publish(Tinode.TOPIC_SYS, msg, head, null);
+
+        mTopic.updateMode(null, "-JP")
+                .thenApply(new PromisedReply.SuccessListener<>() {
+                    @Override
+                    public PromisedReply<ServerMessage> onSuccess(ServerMessage result) {
+                        Activity activity = getActivity();
+                        if (activity != null && !activity.isFinishing()) {
+                            Intent intent = new Intent(activity, ChatsActivity.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                            startActivity(intent);
+                            activity.finish();
+                        }
+                        return null;
+                    }
+                }).thenCatch(mFailureListener);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    // onStart sets up the form with values and views which do not change + sets up listeners.
     public void onStart() {
         final Bundle args = getArguments();
         if (args == null) {
@@ -130,7 +233,6 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
         }
 
         final Activity activity = requireActivity();
-
         final View fragment = getView();
         if (fragment == null) {
             activity.finish();
@@ -147,7 +249,6 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
         }
 
         final View defaultPermissions = fragment.findViewById(R.id.defaultPermissionsWrapper);
-
         final View deleteGroup = fragment.findViewById(R.id.buttonDeleteGroup);
         final View blockContact = fragment.findViewById(R.id.buttonBlock);
         final View reportGroup = fragment.findViewById(R.id.buttonReportGroup);
@@ -155,9 +256,7 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
         final View reportContact = fragment.findViewById(R.id.buttonReportContact);
 
         if (mTopic.isGrpType()) {
-            // Group topic
             final View buttonLeave = fragment.findViewById(R.id.buttonLeave);
-
             fragment.findViewById(R.id.singleUserPermissionsWrapper).setVisibility(View.VISIBLE);
             fragment.findViewById(R.id.p2pPermissionsWrapper).setVisibility(View.GONE);
             blockContact.setVisibility(View.GONE);
@@ -182,7 +281,6 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
             defaultPermissions.setVisibility(mTopic.isManager() ? View.VISIBLE : View.GONE);
 
         } else if (mTopic.isP2PType()) {
-            // P2P topic
             fragment.findViewById(R.id.singleUserPermissionsWrapper).setVisibility(View.GONE);
             fragment.findViewById(R.id.p2pPermissionsWrapper).setVisibility(View.VISIBLE);
 
@@ -191,14 +289,12 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
                     two.fn : mTopic.getName());
 
             defaultPermissions.setVisibility(View.GONE);
-
             deleteGroup.setVisibility(View.GONE);
             reportGroup.setVisibility(View.GONE);
             reportChannel.setVisibility(View.GONE);
             reportContact.setVisibility(View.VISIBLE);
             blockContact.setVisibility(View.VISIBLE);
         } else {
-            // Slf topic
             fragment.findViewById(R.id.singleUserPermissionsWrapper).setVisibility(View.GONE);
             fragment.findViewById(R.id.p2pPermissionsWrapper).setVisibility(View.GONE);
             defaultPermissions.setVisibility(View.GONE);
@@ -211,7 +307,6 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
 
         notifyContentChanged();
         notifyDataSetChanged();
-
         super.onStart();
     }
 
@@ -233,24 +328,17 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
         }
     }
 
-    // Called when topic description is changed.
     private void notifyContentChanged() {
         View fragment = getView();
         if (fragment == null) {
             return;
         }
-
         Acs acs = mTopic.getAccessMode();
         ((TextView) fragment.findViewById(R.id.permissionsSingle)).setText(acs == null ? "" : acs.getMode());
-
         ((TextView) fragment.findViewById(R.id.authPermissions)).setText(mTopic.getAuthAcsStr());
         ((TextView) fragment.findViewById(R.id.anonPermissions)).setText(mTopic.getAnonAcsStr());
     }
 
-    // Confirmation dialog "Do you really want to do X?"
-    //  uid - user to apply action to
-    //  message_id - id of the string resource to use as an explanation.
-    //  what - action to take on success, ACTION_*
     private void showConfirmationDialog(final String arg1,
                                         int title_id, int message_id,
                                         final int what) {
@@ -274,15 +362,8 @@ public class TopicSecurityFragment extends Fragment implements MessageActivity.D
                     response = mTopic.delete(true);
                     break;
                 case ACTION_REPORT:
-                    HashMap<String, Object> json = new HashMap<>();
-                    json.put("action", "report");
-                    json.put("target", mTopic.getName());
-                    Drafty msg = new Drafty().attachJSON(json);
-                    HashMap<String,Object> head = new HashMap<>();
-                    head.put("mime", Drafty.MIME_TYPE);
-                    Cache.getTinode().publish(Tinode.TOPIC_SYS, msg, head, null);
-                    response = mTopic.updateMode(null, "-JP");
-                    break;
+                    performTinodeReportAndBlock();
+                    return;
                 case ACTION_BAN_TOPIC:
                     response = mTopic.updateMode(null, "-JP");
                     break;
