@@ -4,33 +4,22 @@
     android:viewportWidth="192"
     android:viewportHeight="192">
 
-    <!-- T-Score approved blue rounded-square brand mark. -->
-    <path
-        android:fillColor="#3F7FF0"
-        android:pathData="M50,24 L142,24 C156.4,24 168,35.6 168,50 L168,142 C168,156.4 156.4,168 142,168 L50,168 C35.6,168 24,156.4 24,142 L24,50 C24,35.6 35.6,24 50,24 Z" />
+    <path android:fillColor="#06152F" android:pathData="M96,8 A88,88 0,1 1,95.9,8 Z" />
+    <path android:fillColor="#00D8FF" android:fillType="evenOdd" android:pathData="M96,9 A87,87 0,1 1,95.9,9 M96,15 A81,81 0,1 0,96.1,15 Z" />
+    <path android:fillColor="#168BFF" android:fillType="evenOdd" android:pathData="M96,15 A81,81 0,1 1,95.9,15 M96,18 A78,78 0,1 0,96.1,18 Z" />
 
-    <!-- Lower-left chain link. -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="15"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M83,72 L57,98 C45,110 45,129 57,141 C69,153 88,153 100,141 L126,115" />
+    <!-- Main white T -->
+    <path android:fillColor="#FFFFFF" android:pathData="M52,49 L137,49 L129,66 C127,71 123,73 117,73 L104,73 L93,127 C92,133 88,136 82,134 L68,130 L82,73 L49,73 Z" />
 
-    <!-- Upper-right chain link: blue under-stroke creates the interlock at the crossing. -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#3F7FF0"
-        android:strokeWidth="27"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M109,120 L135,94 C147,82 147,63 135,51 C123,39 104,39 92,51 L66,77" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="15"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M109,120 L135,94 C147,82 147,63 135,51 C123,39 104,39 92,51 L66,77" />
+    <!-- Check mark -->
+    <path android:fillColor="#00E6F6" android:pathData="M84,92 L101,107 L132,77 L145,73 L103,126 L80,102 Z" />
+    <path android:fillColor="#126BFF" android:pathData="M101,107 L132,77 L145,73 L103,126 Z" />
+
+    <!-- Orbit accents -->
+    <path android:fillColor="#00D8FF" android:pathData="M72,43 C91,32 119,32 136,43 C145,49 151,58 152,70 C146,52 126,41 102,41 C90,41 80,42 72,43 Z" />
+    <path android:fillColor="#00D8FF" android:pathData="M61,92 C53,104 54,117 66,126 C76,134 91,136 105,132 C91,142 70,141 58,129 C47,118 47,103 61,92 Z" />
+
+    <!-- Lower waves from approved mark -->
+    <path android:fillColor="#0B6DFF" android:pathData="M34,145 C58,153 82,158 107,157 C126,156 144,151 160,143 C145,158 123,166 98,167 C74,167 52,160 34,145 Z" />
+    <path android:fillColor="#00D8FF" android:pathData="M31,139 C53,147 77,151 100,150 C122,149 142,144 158,136 C143,149 123,156 101,157 C75,158 50,151 31,139 Z" />
 </vector>
