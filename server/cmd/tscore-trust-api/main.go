@@ -40,6 +40,17 @@ func main() {
 	verificationStore := tscore.NewVerificationStore(pool)
 	if err := verificationStore.EnsureSchema(ctx); err != nil { log.Fatalf("verification schema: %v", err) }
 
+	var evidenceStore *tscore.EvidenceStore
+	if key := os.Getenv("TSCORE_VERIFICATION_EVIDENCE_KEY"); key != "" {
+		dir := os.Getenv("TSCORE_VERIFICATION_EVIDENCE_DIR")
+		if dir == "" { dir = "/var/lib/t-score/private-evidence" }
+		evidenceStore, err = tscore.NewEvidenceStore(dir, key)
+		if err != nil { log.Fatalf("verification evidence storage: %v", err) }
+		log.Print("Encrypted private verification evidence storage enabled")
+	} else {
+		log.Print("Verification evidence uploads disabled: encryption key not configured")
+	}
+
 	trustHandler := tscoreapi.New(trustStore, adminKey)
 	var dealHandler http.Handler = tscoredealapi.New(dealStore, adminKey)
 	var reputationHandler http.Handler = http.NotFoundHandler()
@@ -52,7 +63,11 @@ func main() {
 		if err != nil { log.Fatalf("Tinode token verifier config: %v", err) }
 		dealHandler = tscoredealapi.NewAuthenticated(dealStore, adminKey, verifier)
 		reputationHandler = tscorereputationapi.New(dealStore, verifier)
-		verificationHandler = tscoreverificationapi.New(verificationStore, verifier, adminKey)
+		if evidenceStore != nil {
+			verificationHandler = tscoreverificationapi.New(verificationStore, verifier, adminKey, evidenceStore)
+		} else {
+			verificationHandler = tscoreverificationapi.New(verificationStore, verifier, adminKey)
+		}
 		log.Print("Authenticated Deals + Reputation + Verification API enabled")
 	} else {
 		log.Print("Authenticated user APIs disabled: token verifier not configured")
@@ -70,7 +85,7 @@ func main() {
 	mux.Handle("/internal/v1/users/", dealHandler)
 	mux.Handle("/", trustHandler)
 
-	srv := &http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,ReadTimeout:10*time.Second,WriteTimeout:10*time.Second,IdleTimeout:60*time.Second}
+	srv := &http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,ReadTimeout:15*time.Second,WriteTimeout:15*time.Second,IdleTimeout:60*time.Second}
 	log.Printf("T-Score trust/deals/reputation/verification API listening on %s", addr)
 	log.Fatal(srv.ListenAndServe())
 }
