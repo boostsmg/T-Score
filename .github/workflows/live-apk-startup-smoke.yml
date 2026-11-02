@@ -38,16 +38,17 @@ jobs:
           disable-animations: true
           script: |
             set -euo pipefail
+            PACKAGE=com.tscore.app
             adb install -r apk/T-Score.apk
             adb logcat -c
-            adb shell am force-stop co.tinode.tindroid || true
-            adb shell monkey -p co.tinode.tindroid -c android.intent.category.LAUNCHER 1
+            adb shell am force-stop "$PACKAGE" || true
+            adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
             sleep 10
-            pid=$(adb shell pidof co.tinode.tindroid | tr -d '\r' || true)
+            pid=$(adb shell pidof "$PACKAGE" | tr -d '\r' || true)
             echo "APP_PID=$pid"
-            adb shell dumpsys activity activities | grep -E 'mResumedActivity|co.tinode.tindroid' | head -50 || true
+            adb shell dumpsys activity activities | grep -E 'mResumedActivity|com.tscore.app|co.tinode.tindroid' | head -80 || true
             echo '=== CRASH TRACE ==='
-            adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: co\.tinode\.tindroid|Caused by:|TScoreApp|InitRouterActivity|LoginActivity|ChatsActivity' | tail -350 || true
+            adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: com\.tscore\.app|Caused by:|TScoreApp|InitRouterActivity|LoginActivity|ChatsActivity' | tail -400 || true
             if [ -z "$pid" ]; then
               echo 'APP_PROCESS_DIED'
               exit 1
