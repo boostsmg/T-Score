@@ -3,13 +3,22 @@
     android:height="192dp"
     android:viewportWidth="192"
     android:viewportHeight="192">
-    <path
-        android:fillColor="#165DFF"
-        android:pathData="M96,12 L160,36 L160,84 C160,128 136,158 96,180 C56,158 32,128 32,84 L32,36 Z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M55,54 L137,54 L137,74 L107,74 L107,138 L85,138 L85,74 L55,74 Z" />
+
+    <!-- Premium black mark matching the approved T-Score logo. -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M67,122 L82,137 L126,94 L139,108 L82,164 L54,136 Z" />
+        android:pathData="M45,24 C33,24 24,33 24,45 L24,147 C24,159 33,168 45,168 L147,168 C159,168 168,159 168,147 L168,45 C168,33 159,24 147,24 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M48,31 C38,31 31,38 31,48 L31,144 C31,154 38,161 48,161 L144,161 C154,161 161,154 161,144 L161,48 C161,38 154,31 144,31 Z" />
+
+    <!-- White cap of the T. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M62,51 L130,51 C133,51 135,53 135,56 L135,67 C135,70 133,72 130,72 L62,72 C59,72 57,70 57,67 L57,56 C57,53 59,51 62,51 Z" />
+
+    <!-- Red stem of the T. -->
+    <path
+        android:fillColor="#FF0000"
+        android:pathData="M87,69 L105,69 L105,136 C105,142 101,146 96,146 C91,146 87,142 87,136 Z" />
 </vector>
