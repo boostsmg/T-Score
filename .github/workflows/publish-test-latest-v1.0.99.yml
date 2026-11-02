@@ -34,11 +34,17 @@ jobs:
           LINE="$($AAPT dump badging dist/T-Score.apk | head -n1)"
           echo "$LINE" | grep -q "versionCode='1099'"
           echo "$LINE" | grep -q "versionName='1.0.99'"
-      - name: Update test-latest asset
+      - name: Create or update test-latest asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release view test-latest >/dev/null
-          gh release upload test-latest dist/T-Score.apk --clobber
+          if gh release view test-latest >/dev/null 2>&1; then
+            gh release upload test-latest dist/T-Score.apk --clobber
+          else
+            gh release create test-latest \
+              --title "T-Score test-latest" \
+              --notes "Production signing input for verified T-Score v1.0.99." \
+              dist/T-Score.apk
+          fi
           echo 'test-latest now contains T-Score v1.0.99'
