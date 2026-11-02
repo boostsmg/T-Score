@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
@@ -37,6 +38,8 @@ import co.tinode.tinodesdk.model.Subscription;
 public class ChatsActivity extends BaseActivity
         implements UiUtils.ProgressIndicator, UtilsMedia.MediaPreviewer,
         ImageViewFragment.AvatarCompletionHandler {
+    private static final String TAG = "ChatsActivity";
+
     static final String TAG_FRAGMENT_NAME = "fragment";
     static final String FRAGMENT_CHATLIST = "contacts";
     static final String FRAGMENT_DEALS = "deals";
@@ -100,11 +103,22 @@ public class ChatsActivity extends BaseActivity
             updateMainTabStyle(TextUtils.isEmpty(currentTag) ? FRAGMENT_CHATLIST : currentTag);
         }
 
-        mMeTopic = Cache.getTinode().getOrCreateMeTopic();
-        mMeTopicListener = new MeListener();
+        // Existing/older installs may restore a local DB/session that is no longer
+        // usable after an upgrade. Never let that take down the whole process.
+        try {
+            mMeTopic = Cache.getTinode().getOrCreateMeTopic();
+            mMeTopicListener = new MeListener();
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to initialize logged-in session; returning to login", t);
+            recoverToLogin();
+        }
     }
 
     private void showMainTab(String tag) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+
         Fragment current = getSupportFragmentManager().findFragmentById(R.id.contentFragment);
         if (current != null && tag.equals(current.getTag()) && current.isAdded()) {
             updateMainTabStyle(tag);
@@ -132,14 +146,35 @@ public class ChatsActivity extends BaseActivity
                 title = "T-Score";
                 break;
         }
-        FragmentTransaction trx = getSupportFragmentManager().beginTransaction()
-                .replace(R.id.contentFragment, fragment, tag);
-        if (FRAGMENT_CHATLIST.equals(tag)) {
-            trx.setPrimaryNavigationFragment(fragment);
+
+        try {
+            FragmentTransaction trx = getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.contentFragment, fragment, tag);
+            if (FRAGMENT_CHATLIST.equals(tag)) {
+                trx.setPrimaryNavigationFragment(fragment);
+            }
+            trx.commitAllowingStateLoss();
+            if (getSupportActionBar() != null) getSupportActionBar().setTitle(title);
+            updateMainTabStyle(tag);
+        } catch (RuntimeException e) {
+            // A restored FragmentManager state from an older APK must not cause a
+            // permanent close-loop. Log it and fall back to the stable Chats tab.
+            Log.e(TAG, "Failed to show main tab " + tag, e);
+            if (!FRAGMENT_CHATLIST.equals(tag)) {
+                try {
+                    Fragment fallback = new ChatsFragment();
+                    getSupportFragmentManager().beginTransaction()
+                            .replace(R.id.contentFragment, fallback, FRAGMENT_CHATLIST)
+                            .commitAllowingStateLoss();
+                    updateMainTabStyle(FRAGMENT_CHATLIST);
+                } catch (RuntimeException fallbackError) {
+                    Log.e(TAG, "Chats fallback also failed", fallbackError);
+                    recoverToLogin();
+                }
+            } else {
+                recoverToLogin();
+            }
         }
-        trx.commitAllowingStateLoss();
-        if (getSupportActionBar() != null) getSupportActionBar().setTitle(title);
-        updateMainTabStyle(tag);
     }
 
     private void updateMainTabStyle(String selected) {
@@ -167,27 +202,48 @@ public class ChatsActivity extends BaseActivity
     public void onResume() {
         super.onResume();
 
-        final Tinode tinode = Cache.getTinode();
-        mTinodeListener = new ContactsEventListener(tinode.isConnected());
-        tinode.addListener(mTinodeListener);
-
-        Cache.setSelectedTopicName(null);
-
-        UiUtils.setupToolbar(this, null, null, false,
-                null, false, 0);
-
-        if (!mMeTopic.isAttached()) {
-            toggleProgressIndicator(true);
+        if (mMeTopic == null || mMeTopicListener == null) {
+            Log.e(TAG, "Missing MeTopic during resume; recovering to login");
+            recoverToLogin();
+            return;
         }
 
-        // This will issue a subscription request.
-        if (!UiUtils.attachMeTopic(this, mMeTopicListener)) {
-            toggleProgressIndicator(false);
+        try {
+            final Tinode tinode = Cache.getTinode();
+            if (tinode == null) {
+                Log.e(TAG, "Missing Tinode cache during resume; recovering to login");
+                recoverToLogin();
+                return;
+            }
+
+            mTinodeListener = new ContactsEventListener(tinode.isConnected());
+            tinode.addListener(mTinodeListener);
+
+            Cache.setSelectedTopicName(null);
+
+            UiUtils.setupToolbar(this, null, null, false,
+                    null, false, 0);
+
+            if (!mMeTopic.isAttached()) {
+                toggleProgressIndicator(true);
+            }
+
+            // This will issue a subscription request.
+            if (!UiUtils.attachMeTopic(this, mMeTopicListener)) {
+                toggleProgressIndicator(false);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to restore logged-in session; recovering to login", t);
+            recoverToLogin();
+            return;
         }
 
         final Intent intent = getIntent();
         String tag = intent.getStringExtra(TAG_FRAGMENT_NAME);
         if (!TextUtils.isEmpty(tag)) {
+            // Consume one-shot navigation. Otherwise onResume may try to open the
+            // same stale destination repeatedly after background/foreground cycles.
+            intent.removeExtra(TAG_FRAGMENT_NAME);
             showFragment(tag, null);
         }
     }
@@ -203,14 +259,27 @@ public class ChatsActivity extends BaseActivity
     public void onPause() {
         super.onPause();
 
-        Cache.getTinode().removeListener(mTinodeListener);
+        try {
+            Tinode tinode = Cache.getTinode();
+            if (tinode != null && mTinodeListener != null) {
+                tinode.removeListener(mTinodeListener);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to remove Tinode listener during pause", t);
+        } finally {
+            mTinodeListener = null;
+        }
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        if (mMeTopic != null) {
-            mMeTopic.remListener(mMeTopicListener);
+        if (mMeTopic != null && mMeTopicListener != null) {
+            try {
+                mMeTopic.remListener(mMeTopicListener);
+            } catch (Throwable t) {
+                Log.w(TAG, "Failed to remove MeTopic listener during stop", t);
+            }
         }
     }
 
@@ -226,7 +295,15 @@ public class ChatsActivity extends BaseActivity
     }
 
     void showFragment(String tag, Bundle args) {
-        if (isFinishing() || isDestroyed()) {
+        if (isFinishing() || isDestroyed() || TextUtils.isEmpty(tag)) {
+            return;
+        }
+
+        // Main-tab destinations are handled by the main navigation path. Older
+        // intents/deep links may still send these tags through showFragment().
+        if (FRAGMENT_CHATLIST.equals(tag) || FRAGMENT_DEALS.equals(tag)
+                || FRAGMENT_PEOPLE.equals(tag) || FRAGMENT_TRUST_PROFILE.equals(tag)) {
+            showMainTab(tag);
             return;
         }
 
@@ -273,14 +350,15 @@ public class ChatsActivity extends BaseActivity
                     }
                     args.putBoolean(tag, true);
                     break;
-                case FRAGMENT_CHATLIST:
-                    fragment = new ChatsFragment();
-                    break;
                 case FRAGMENT_WALLPAPERS:
                     fragment = new WallpaperFragment();
                     break;
                 default:
-                    throw new IllegalArgumentException("Failed to create fragment: unknown tag " + tag);
+                    // Do not crash the whole app because of a stale/unknown intent
+                    // left by an older build or notification.
+                    Log.w(TAG, "Ignoring unknown fragment tag: " + tag);
+                    showMainTab(FRAGMENT_CHATLIST);
+                    return;
             }
         } else if (args == null) {
             // Retain old arguments.
@@ -295,11 +373,33 @@ public class ChatsActivity extends BaseActivity
             }
         }
 
-        FragmentTransaction trx = fm.beginTransaction();
-        trx.replace(R.id.contentFragment, fragment, tag)
-                .addToBackStack(tag)
-                .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
-                .commit();
+        try {
+            FragmentTransaction trx = fm.beginTransaction();
+            trx.replace(R.id.contentFragment, fragment, tag)
+                    .addToBackStack(tag)
+                    .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
+                    .commitAllowingStateLoss();
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Failed to navigate to fragment " + tag + "; falling back to Chats", e);
+            showMainTab(FRAGMENT_CHATLIST);
+        }
+    }
+
+    private void recoverToLogin() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        try {
+            Intent fallback = new Intent(this, LoginActivity.class);
+            fallback.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(fallback);
+        } catch (Throwable t) {
+            Log.e(TAG, "Unable to launch login recovery", t);
+        } finally {
+            finish();
+        }
     }
 
     @Override
@@ -425,7 +525,13 @@ public class ChatsActivity extends BaseActivity
         @Override
         public void onLogin(int code, String txt) {
             super.onLogin(code, txt);
-            UiUtils.attachMeTopic(ChatsActivity.this, mMeTopicListener);
+            if (mMeTopicListener != null) {
+                try {
+                    UiUtils.attachMeTopic(ChatsActivity.this, mMeTopicListener);
+                } catch (Throwable t) {
+                    Log.e(TAG, "Failed to attach MeTopic after login", t);
+                }
+            }
         }
 
         @Override
