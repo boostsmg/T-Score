@@ -11,6 +11,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
@@ -33,40 +34,59 @@ public class TrustProfileFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle state) {
         View root = inflater.inflate(R.layout.fragment_trust_profile, container, false);
         verificationList = root.findViewById(R.id.verificationList);
-        renderLocalState();
-        loadLiveTrust();
-        loadReputation();
-        loadVerificationRequests();
         return root;
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        refreshProfile();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        if (verificationList != null) {
-            renderLocalState();
-            loadLiveTrust();
-            loadReputation();
-            loadVerificationRequests();
+        if (getView() != null && verificationList != null) {
+            refreshProfile();
         }
     }
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        verificationList = null;
+    }
+
+    private void refreshProfile() {
+        if (!isAdded() || getView() == null || verificationList == null) return;
+        renderLocalState();
+        loadLiveTrust();
+        loadReputation();
+        loadVerificationRequests();
+    }
+
     private void renderLocalState() {
-        if (verificationList == null || getView() == null) return;
+        View root = getView();
+        if (verificationList == null || root == null) return;
         verificationList.removeAllViews();
 
         username = PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getString(LoginActivity.PREFS_LAST_LOGIN, "T-Score user");
         email = PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getString("tscore_signup_email", "");
+        try {
+            userId = Cache.getTinode().getMyId();
+        } catch (Throwable ignored) {
+            userId = null;
+        }
 
-        TextView profileName = requireView().findViewById(R.id.profileName);
-        TextView profileUsername = requireView().findViewById(R.id.profileUsername);
-        Chip trustBadge = requireView().findViewById(R.id.profileTrustBadge);
-        TextView trustScoreValue = requireView().findViewById(R.id.trustScoreValue);
-        TextView trustScoreStatus = requireView().findViewById(R.id.trustScoreStatus);
-        TextView reputationRating = requireView().findViewById(R.id.reputationRating);
-        TextView reputationStats = requireView().findViewById(R.id.reputationStats);
+        TextView profileName = root.findViewById(R.id.profileName);
+        TextView profileUsername = root.findViewById(R.id.profileUsername);
+        Chip trustBadge = root.findViewById(R.id.profileTrustBadge);
+        TextView trustScoreValue = root.findViewById(R.id.trustScoreValue);
+        TextView trustScoreStatus = root.findViewById(R.id.trustScoreStatus);
+        TextView reputationRating = root.findViewById(R.id.reputationRating);
+        TextView reputationStats = root.findViewById(R.id.reputationStats);
 
         if (profileName != null) profileName.setText(TextUtils.isEmpty(username) ? "T-Score User" : username);
         if (profileUsername != null) profileUsername.setText("@" + (TextUtils.isEmpty(username) ? "tscore-user" : username));
@@ -80,7 +100,7 @@ public class TrustProfileFragment extends Fragment {
             addCheck(item.title, requestAwareStatus(item.title, localFallbackStatus(item.title)), "+" + item.maxPoints + " points");
         }
 
-        Button profile = requireView().findViewById(R.id.profileSettingsButton);
+        Button profile = root.findViewById(R.id.profileSettingsButton);
         if (profile != null) {
             profile.setText("Manage verification");
             profile.setOnClickListener(v -> showVerificationManager());
@@ -96,10 +116,11 @@ public class TrustProfileFragment extends Fragment {
                 renderLiveResult(result);
             }
             @Override public void onError(Exception error) {
-                if (!isAdded() || getView() == null || !requestedId.equals(userId)) return;
-                Chip badge = requireView().findViewById(R.id.profileTrustBadge);
-                TextView status = requireView().findViewById(R.id.trustScoreStatus);
-                TextView value = requireView().findViewById(R.id.trustScoreValue);
+                View root = getView();
+                if (!isAdded() || root == null || !requestedId.equals(userId)) return;
+                Chip badge = root.findViewById(R.id.profileTrustBadge);
+                TextView status = root.findViewById(R.id.trustScoreStatus);
+                TextView value = root.findViewById(R.id.trustScoreValue);
                 if (badge != null) badge.setText("OFFLINE");
                 if (value != null) value.setText("— / " + TrustScoreModel.maximumScore());
                 if (status != null) status.setText("Could not refresh T-Score. Your account and chats are unaffected.");
@@ -110,7 +131,7 @@ public class TrustProfileFragment extends Fragment {
     private void loadVerificationRequests() {
         VerificationApiClient.list(new VerificationApiClient.ListCallback() {
             @Override public void onSuccess(List<VerificationApiClient.Item> items) {
-                if (!isAdded()) return;
+                if (!isAdded() || getView() == null) return;
                 verificationStates.clear();
                 for (VerificationApiClient.Item item : items) {
                     if (!verificationStates.containsKey(item.type) || "APPROVED".equals(item.status)) {
@@ -146,7 +167,7 @@ public class TrustProfileFragment extends Fragment {
         }
         VerificationApiClient.create(type, new VerificationApiClient.ActionCallback() {
             @Override public void onSuccess(boolean evidenceRequired, String requestId) {
-                if (!isAdded()) return;
+                if (!isAdded() || getView() == null) return;
                 verificationStates.put(type, "PENDING");
                 renderLocalState();
                 String message = evidenceRequired
@@ -161,21 +182,22 @@ public class TrustProfileFragment extends Fragment {
     }
 
     private void loadReputation() {
-        String userId = Cache.getTinode().getMyId();
         if (TextUtils.isEmpty(userId) || !userId.startsWith("usr")) return;
         final String requestedId = userId;
-        ReputationApiClient.fetchSummary(userId, new ReputationApiClient.SummaryCallback() {
+        ReputationApiClient.fetchSummary(requestedId, new ReputationApiClient.SummaryCallback() {
             @Override public void onSuccess(ReputationApiClient.Summary summary) {
-                if (!isAdded() || getView() == null || !requestedId.equals(Cache.getTinode().getMyId())) return;
-                TextView rating = requireView().findViewById(R.id.reputationRating);
-                TextView stats = requireView().findViewById(R.id.reputationStats);
+                View root = getView();
+                if (!isAdded() || root == null || !requestedId.equals(userId)) return;
+                TextView rating = root.findViewById(R.id.reputationRating);
+                TextView stats = root.findViewById(R.id.reputationStats);
                 if (rating != null) rating.setText(summary.reviewCount > 0 ? String.format(Locale.US, "★ %.1f / 5", summary.averageRating) : "No ratings yet");
                 if (stats != null) stats.setText(summary.reviewCount + (summary.reviewCount == 1 ? " review" : " reviews") + " • " + summary.completedDeals + " completed deals" + " • " + summary.disputedDeals + " disputed deals");
             }
             @Override public void onFailure(String message) {
-                if (!isAdded() || getView() == null) return;
-                TextView rating = requireView().findViewById(R.id.reputationRating);
-                TextView stats = requireView().findViewById(R.id.reputationStats);
+                View root = getView();
+                if (!isAdded() || root == null) return;
+                TextView rating = root.findViewById(R.id.reputationRating);
+                TextView stats = root.findViewById(R.id.reputationStats);
                 if (rating != null) rating.setText("Reputation offline");
                 if (stats != null) stats.setText("Reputation will refresh when the T-Score API is available.");
             }
@@ -183,9 +205,11 @@ public class TrustProfileFragment extends Fragment {
     }
 
     private void renderLiveResult(TrustApiClient.Result result) {
-        Chip badge = requireView().findViewById(R.id.profileTrustBadge);
-        TextView value = requireView().findViewById(R.id.trustScoreValue);
-        TextView status = requireView().findViewById(R.id.trustScoreStatus);
+        View root = getView();
+        if (root == null || verificationList == null) return;
+        Chip badge = root.findViewById(R.id.profileTrustBadge);
+        TextView value = root.findViewById(R.id.trustScoreValue);
+        TextView status = root.findViewById(R.id.trustScoreStatus);
         if (badge != null) badge.setText(result.badge.toUpperCase());
         if (value != null) value.setText(result.score + " / " + TrustScoreModel.maximumScore());
         if (status != null) status.setText(statusForScore(result.score, result.badge));
@@ -252,6 +276,7 @@ public class TrustProfileFragment extends Fragment {
     }
 
     private void addCheck(String name, String status, String points) {
+        if (!isAdded() || verificationList == null) return;
         View v = LayoutInflater.from(requireContext()).inflate(R.layout.item_verification_check, verificationList, false);
         TextView title = v.findViewById(R.id.verifyTitle);
         TextView stat = v.findViewById(R.id.verifyStatus);
