@@ -28,6 +28,14 @@ type DealDispute struct {
 	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
 }
 
+type ReputationSummary struct {
+	UserID          string  `json:"user_id"`
+	ReviewCount     int     `json:"review_count"`
+	AverageRating   float64 `json:"average_rating"`
+	CompletedDeals  int     `json:"completed_deals"`
+	DisputedDeals   int     `json:"disputed_deals"`
+}
+
 var ErrReviewExists = errors.New("review already submitted")
 var ErrReviewNotAllowed = errors.New("review not allowed")
 var ErrDisputeExists = errors.New("dispute already open")
@@ -35,12 +43,8 @@ var ErrDisputeNotAllowed = errors.New("dispute not allowed")
 
 func ValidateReviewInput(rating int, comment string) (string, error) {
 	comment = strings.TrimSpace(comment)
-	if rating < 1 || rating > 5 {
-		return comment, errors.New("rating must be between 1 and 5")
-	}
-	if len(comment) > 1000 {
-		return comment, errors.New("review is too long")
-	}
+	if rating < 1 || rating > 5 { return comment, errors.New("rating must be between 1 and 5") }
+	if len(comment) > 1000 { return comment, errors.New("review is too long") }
 	return comment, nil
 }
 
@@ -49,12 +53,9 @@ func ValidateDisputeInput(reason, details string) (string, string, error) {
 	details = strings.TrimSpace(details)
 	switch reason {
 	case "PAYMENT", "DELIVERY", "NOT_AS_DESCRIBED", "SCAM", "OTHER":
-	default:
-		return reason, details, errors.New("invalid dispute reason")
+	default: return reason, details, errors.New("invalid dispute reason")
 	}
-	if len(details) < 10 || len(details) > 4000 {
-		return reason, details, errors.New("dispute details must be 10-4000 characters")
-	}
+	if len(details) < 10 || len(details) > 4000 { return reason, details, errors.New("dispute details must be 10-4000 characters") }
 	return reason, details, nil
 }
 
