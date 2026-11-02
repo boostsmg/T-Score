@@ -1,0 +1,65 @@
+name: Publish T-Score Deploy Assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-deploy-assets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified backend artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/backend dist/android
+          gh run download 41379637246 -n T-Score-Trust-API-Linux-amd64 -D dist/backend
+          test -f dist/backend/tscore-trust-api
+          chmod +x dist/backend/tscore-trust-api
+
+      - name: Download verified Android artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 41379691828 -n T-Score-Final-Android -D dist/android
+          test -f dist/android/T-Score.apk
+
+      - name: Verify expected Android version
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "build-tools;36.0.0" >/dev/null
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          BADGING="$($AAPT dump badging dist/android/T-Score.apk | head -n1)"
+          echo "$BADGING" | grep -q "versionCode='1099'"
+          echo "$BADGING" | grep -q "versionName='1.0.99'"
+
+      - name: Publish immutable deploy release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="deploy-v1.0.99-final"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; replacing assets only."
+            gh release upload "$TAG" dist/backend/tscore-trust-api dist/backend/tscore-trust-api.sha256 dist/android/T-Score.apk --clobber
+          else
+            gh release create "$TAG" \
+              --title "T-Score Deploy v1.0.99" \
+              --notes "Verified deployment assets for T-Score v1.0.99. Backend CI and Android compile passed." \
+              dist/backend/tscore-trust-api \
+              dist/backend/tscore-trust-api.sha256 \
+              dist/android/T-Score.apk
+          fi
