@@ -29,7 +29,7 @@
     <color name="ts_border">#4A4A4A</color>
     <color name="ts_border_focus">#00897B</color>
 
-    <!-- Status / semantic (dark - same as light for readability) -->
+    <!-- Status / semantic -->
     <color name="ts_success">#2E7D32</color>
     <color name="ts_success_bg">#1B3020</color>
     <color name="ts_warning">#F57C00</color>
@@ -39,23 +39,23 @@
     <color name="ts_info">#1565C0</color>
     <color name="ts_info_bg">#172A4A</color>
 
-    <!-- Trust score levels (dark) -->
+    <!-- Trust score levels -->
     <color name="ts_trust_new">#9E9E9E</color>
     <color name="ts_trust_basic">#42A5F5</color>
     <color name="ts_trust_trusted">#00897B</color>
     <color name="ts_trust_highly">#4CAF50</color>
 
-    <!-- ========================================================================
-         Legacy dark overrides (preserve existing names)
-         ======================================================================== -->
-    <color name="colorMessageBubbleMine">#FF202020</color>
-    <color name="colorMessageBubbleMineFlashing">#F666</color>
-    <color name="colorMessageBubbleMineFlashingLight">#F444</color>
-    <color name="colorMessageBubbleOther">#FF003308</color>
-    <color name="colorMessageBubbleOtherFlashing">#FF558870</color>
-    <color name="colorMessageBubbleOtherFlashingLight">#FF305530</color>
-    <color name="colorReplyBubble">#10CCCCCC</color>
-    <color name="colorReplyText">#CCCCCC</color>
+    <!-- Messaging -->
+    <color name="colorMessageBubbleMine">#123E38</color>
+    <color name="colorMessageBubbleMineFlashing">#1A5149</color>
+    <color name="colorMessageBubbleMineFlashingLight">#17473F</color>
+    <color name="colorMessageBubbleOther">#252525</color>
+    <color name="colorMessageBubbleOtherFlashing">#333333</color>
+    <color name="colorMessageBubbleOtherFlashingLight">#2D2D2D</color>
+    <color name="colorReplyBubble">#2200897B</color>
+    <color name="colorReplyText">#B0BEC5</color>
+
+    <!-- Legacy dark overrides -->
     <color name="colorNegativeAction">#983220</color>
     <color name="colorPositiveAction">#326F3E</color>
     <color name="colorNeutralAction">#555555</color>
@@ -64,7 +64,7 @@
     <color name="waveformPast">#80FFFFFF</color>
     <color name="colorChipBackground">#263238</color>
     <color name="colorChipBorder">#546E7A</color>
-    <color name="colorListDivider">#666666</color>
+    <color name="colorListDivider">#3A3A3A</color>
     <color name="colorAccent">#00897B</color>
     <color name="colorDanger">#d32f2f</color>
     <color name="colorOffline">#999900</color>
