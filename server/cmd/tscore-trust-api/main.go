@@ -14,6 +14,7 @@ import (
 	"github.com/tinode/chat/tscoreauth"
 	"github.com/tinode/chat/tscoredealapi"
 	"github.com/tinode/chat/tscorereputationapi"
+	"github.com/tinode/chat/tscoreverificationapi"
 )
 
 func main() {
@@ -36,10 +37,13 @@ func main() {
 	dealStore := tscore.NewDealStore(pool)
 	if err := dealStore.EnsureSchema(ctx); err != nil { log.Fatalf("deal schema: %v", err) }
 	if err := dealStore.EnsureReputationSchema(ctx); err != nil { log.Fatalf("reputation schema: %v", err) }
+	verificationStore := tscore.NewVerificationStore(pool)
+	if err := verificationStore.EnsureSchema(ctx); err != nil { log.Fatalf("verification schema: %v", err) }
 
 	trustHandler := tscoreapi.New(trustStore, adminKey)
 	var dealHandler http.Handler = tscoredealapi.New(dealStore, adminKey)
 	var reputationHandler http.Handler = http.NotFoundHandler()
+	var verificationHandler http.Handler = http.NotFoundHandler()
 
 	if tokenKey := os.Getenv("TSCORE_TINODE_TOKEN_KEY"); tokenKey != "" {
 		serial, err := strconv.Atoi(os.Getenv("TSCORE_TINODE_TOKEN_SERIAL"))
@@ -48,7 +52,8 @@ func main() {
 		if err != nil { log.Fatalf("Tinode token verifier config: %v", err) }
 		dealHandler = tscoredealapi.NewAuthenticated(dealStore, adminKey, verifier)
 		reputationHandler = tscorereputationapi.New(dealStore, verifier)
-		log.Print("Authenticated Deals + Reputation API enabled")
+		verificationHandler = tscoreverificationapi.New(verificationStore, verifier, adminKey)
+		log.Print("Authenticated Deals + Reputation + Verification API enabled")
 	} else {
 		log.Print("Authenticated user APIs disabled: token verifier not configured")
 	}
@@ -57,12 +62,15 @@ func main() {
 	mux.Handle("/v1/deals", dealHandler)
 	mux.Handle("/v1/deals/", dealHandler)
 	mux.Handle("/v1/reputation/", reputationHandler)
+	mux.Handle("/v1/verifications", verificationHandler)
+	mux.Handle("/v1/verifications/", verificationHandler)
+	mux.Handle("/internal/v1/verifications/", verificationHandler)
 	mux.Handle("/internal/v1/deals", dealHandler)
 	mux.Handle("/internal/v1/deals/", dealHandler)
 	mux.Handle("/internal/v1/users/", dealHandler)
 	mux.Handle("/", trustHandler)
 
 	srv := &http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,ReadTimeout:10*time.Second,WriteTimeout:10*time.Second,IdleTimeout:60*time.Second}
-	log.Printf("T-Score trust/deals/reputation API listening on %s", addr)
+	log.Printf("T-Score trust/deals/reputation/verification API listening on %s", addr)
 	log.Fatal(srv.ListenAndServe())
 }
