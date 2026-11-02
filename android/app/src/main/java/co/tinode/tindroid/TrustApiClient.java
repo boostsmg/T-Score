@@ -18,9 +18,9 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Read-only client for the public T-Score trust API. */
+/** Read-only client for the public canonical T-Score trust API. */
 public final class TrustApiClient {
-    private static final String BASE_URL = "https://chat.socialrise.garden/tscore-api/v1/trust/";
+    private static final String BASE_URL = "https://chat.socialrise.garden/tscore-api/v1/trust/users/";
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
@@ -30,17 +30,19 @@ public final class TrustApiClient {
     }
 
     public static final class Result {
-        public final String username;
+        public final String userId;
         public final int score;
         public final String badge;
+        public final String standing;
         public final Map<String, Boolean> verified;
         public final Map<String, Integer> breakdown;
 
-        Result(String username, int score, String badge,
+        Result(String userId, int score, String badge, String standing,
                Map<String, Boolean> verified, Map<String, Integer> breakdown) {
-            this.username = username;
+            this.userId = userId;
             this.score = score;
             this.badge = badge;
+            this.standing = standing;
             this.verified = Collections.unmodifiableMap(verified);
             this.breakdown = Collections.unmodifiableMap(breakdown);
         }
@@ -48,11 +50,13 @@ public final class TrustApiClient {
 
     private TrustApiClient() { }
 
-    public static void fetch(String username, Callback callback) {
+    public static void fetch(String userId, Callback callback) {
         EXECUTOR.execute(() -> {
             HttpURLConnection conn = null;
             try {
-                String encoded = URLEncoder.encode(username, StandardCharsets.UTF_8.name()).replace("+", "%20");
+                String clean = userId == null ? "" : userId.trim();
+                if (!clean.startsWith("usr")) throw new IllegalArgumentException("Invalid T-Score user ID");
+                String encoded = URLEncoder.encode(clean, StandardCharsets.UTF_8.name()).replace("+", "%20");
                 URL url = new URL(BASE_URL + encoded);
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
@@ -64,9 +68,7 @@ public final class TrustApiClient {
                 int code = conn.getResponseCode();
                 InputStream stream = code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream();
                 String body = readAll(stream);
-                if (code < 200 || code >= 300) {
-                    throw new IllegalStateException("Trust API HTTP " + code);
-                }
+                if (code < 200 || code >= 300) throw new IllegalStateException("Trust API HTTP " + code);
 
                 JSONObject root = new JSONObject(body);
                 JSONObject trust = root.getJSONObject("trust");
@@ -75,21 +77,18 @@ public final class TrustApiClient {
 
                 Map<String, Boolean> verified = new HashMap<>();
                 String[] verifyKeys = {"profile_photo", "email", "phone", "identity", "address", "liveness"};
-                if (verifiedJson != null) {
-                    for (String key : verifyKeys) verified.put(key, verifiedJson.optBoolean(key, false));
-                }
+                if (verifiedJson != null) for (String key : verifyKeys) verified.put(key, verifiedJson.optBoolean(key, false));
 
                 Map<String, Integer> breakdown = new HashMap<>();
                 String[] scoreKeys = {"profile_photo", "email", "phone", "identity", "address", "liveness",
                         "account_age", "successful_deals", "reviews", "account_standing"};
-                if (breakdownJson != null) {
-                    for (String key : scoreKeys) breakdown.put(key, breakdownJson.optInt(key, 0));
-                }
+                if (breakdownJson != null) for (String key : scoreKeys) breakdown.put(key, breakdownJson.optInt(key, 0));
 
                 Result result = new Result(
-                        root.optString("username", username),
+                        root.optString("user_id", clean),
                         trust.optInt("score", 0),
                         trust.optString("badge", "New"),
+                        root.optString("standing", "GOOD"),
                         verified,
                         breakdown);
                 MAIN.post(() -> callback.onSuccess(result));
