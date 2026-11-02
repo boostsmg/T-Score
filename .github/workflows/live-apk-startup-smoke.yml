@@ -1,0 +1,54 @@
+name: Live APK Startup Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/live-apk-startup-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download exact verified v1.0.99 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p apk
+          gh run download 41379691828 -R boostsmg/T-Score -n T-Score-Final-Android -D apk
+          test -s apk/T-Score.apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install exact APK and capture launch crash
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r apk/T-Score.apk
+            adb logcat -c
+            adb shell am force-stop co.tinode.tindroid || true
+            adb shell monkey -p co.tinode.tindroid -c android.intent.category.LAUNCHER 1
+            sleep 10
+            pid=$(adb shell pidof co.tinode.tindroid | tr -d '\r' || true)
+            echo "APP_PID=$pid"
+            adb shell dumpsys activity activities | grep -E 'mResumedActivity|co.tinode.tindroid' | head -50 || true
+            echo '=== CRASH TRACE ==='
+            adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: co\.tinode\.tindroid|Caused by:|TScoreApp|InitRouterActivity|LoginActivity|ChatsActivity' | tail -350 || true
+            if [ -z "$pid" ]; then
+              echo 'APP_PROCESS_DIED'
+              exit 1
+            fi
