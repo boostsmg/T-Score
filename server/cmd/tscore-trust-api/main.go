@@ -15,6 +15,7 @@ import (
 	"github.com/tinode/chat/tscoredealapi"
 	"github.com/tinode/chat/tscoremoderationapi"
 	"github.com/tinode/chat/tscorereputationapi"
+	"github.com/tinode/chat/tscorestandingapi"
 	"github.com/tinode/chat/tscoreverificationapi"
 )
 
@@ -42,6 +43,8 @@ func main() {
 	if err := verificationStore.EnsureSchema(ctx); err != nil { log.Fatalf("verification schema: %v", err) }
 	moderationStore := tscore.NewModerationStore(pool)
 	if err := moderationStore.EnsureSchema(ctx); err != nil { log.Fatalf("moderation schema: %v", err) }
+	standingStore := tscore.NewAccountStandingStore(pool)
+	if err := standingStore.EnsureSchema(ctx); err != nil { log.Fatalf("account standing schema: %v", err) }
 
 	var evidenceStore *tscore.EvidenceStore
 	if key := os.Getenv("TSCORE_VERIFICATION_EVIDENCE_KEY"); key != "" {
@@ -55,6 +58,7 @@ func main() {
 	}
 
 	trustHandler := tscoreapi.New(trustStore, adminKey)
+	standingHandler := tscorestandingapi.New(standingStore, adminKey)
 	var dealHandler http.Handler = tscoredealapi.New(dealStore, adminKey)
 	var reputationHandler http.Handler = http.NotFoundHandler()
 	var verificationHandler http.Handler = http.NotFoundHandler()
@@ -86,8 +90,11 @@ func main() {
 	mux.Handle("/v1/verifications/", verificationHandler)
 	mux.Handle("/v1/reports", moderationHandler)
 	mux.Handle("/v1/reports/", moderationHandler)
+	mux.Handle("/v1/standing/", standingHandler)
+	mux.Handle("/internal/moderation", moderationHandler)
 	mux.Handle("/internal/v1/reports", moderationHandler)
 	mux.Handle("/internal/v1/reports/", moderationHandler)
+	mux.Handle("/internal/v1/standing/", standingHandler)
 	mux.Handle("/internal/v1/verifications/", verificationHandler)
 	mux.Handle("/internal/v1/deals", dealHandler)
 	mux.Handle("/internal/v1/deals/", dealHandler)
@@ -95,6 +102,6 @@ func main() {
 	mux.Handle("/", trustHandler)
 
 	srv := &http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,ReadTimeout:15*time.Second,WriteTimeout:15*time.Second,IdleTimeout:60*time.Second}
-	log.Printf("T-Score trust/deals/reputation/verification/moderation API listening on %s", addr)
+	log.Printf("T-Score trust/deals/reputation/verification/moderation/standing API listening on %s", addr)
 	log.Fatal(srv.ListenAndServe())
 }
