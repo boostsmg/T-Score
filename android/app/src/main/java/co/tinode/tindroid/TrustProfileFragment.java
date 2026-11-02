@@ -144,12 +144,12 @@ public class TrustProfileFragment extends Fragment {
             return;
         }
         VerificationApiClient.create(type, new VerificationApiClient.ActionCallback() {
-            @Override public void onSuccess(boolean evidenceRequired) {
+            @Override public void onSuccess(boolean evidenceRequired, String requestId) {
                 if (!isAdded()) return;
                 verificationStates.put(type, "PENDING");
                 renderLocalState();
                 String message = evidenceRequired
-                        ? "Request started. Secure private evidence upload is required before approval."
+                        ? "Request started. Private evidence review is required before approval."
                         : "Verification request started successfully.";
                 new AlertDialog.Builder(requireContext()).setTitle(label).setMessage(message).setPositiveButton("OK", null).show();
             }
