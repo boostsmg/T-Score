@@ -276,10 +276,12 @@ public class TopicInfoFragment extends Fragment implements MenuProvider, Message
                 response.thenApply(new PromisedReply.SuccessListener<>() {
                     @Override
                     public PromisedReply<ServerMessage> onSuccess(ServerMessage result) {
-                        Intent intent = new Intent(activity, ChatsActivity.class);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                        startActivity(intent);
-                        activity.finish();
+                        activity.runOnUiThread(() -> {
+                            if (isAdded()) {
+                                notifyDataSetChanged();
+                                Toast.makeText(activity, R.string.group_updated, Toast.LENGTH_SHORT).show();
+                            }
+                        });
                         return null;
                     }
                 }).thenCatch(mFailureListener);

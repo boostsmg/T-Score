@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.PowerManager;
 import android.util.Log;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -83,6 +84,12 @@ public class CallActivity extends BaseActivity  {
         if (mTopic == null) {
             Log.e(TAG, "Invalid topic '" + mTopicName + "'");
             declineCall();
+            return;
+        }
+        if (!mTopic.isP2PType()) {
+            Log.w(TAG, "Rejecting call for non-P2P topic: " + mTopicName);
+            Toast.makeText(this, R.string.calls_one_to_one_only, Toast.LENGTH_SHORT).show();
+            finish();
             return;
         }
 

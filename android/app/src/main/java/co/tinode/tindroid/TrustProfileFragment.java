@@ -25,6 +25,7 @@ import java.util.Map;
 public class TrustProfileFragment extends Fragment {
     private LinearLayout verificationList;
     private String username;
+    private String userId;
     private String email;
     private final Map<String,String> verificationStates = new HashMap<>();
 
@@ -87,15 +88,15 @@ public class TrustProfileFragment extends Fragment {
     }
 
     private void loadLiveTrust() {
-        if (TextUtils.isEmpty(username) || "T-Score user".equals(username)) return;
-        final String requestedUser = username;
-        TrustApiClient.fetch(requestedUser, new TrustApiClient.Callback() {
+        if (TextUtils.isEmpty(userId) || !userId.startsWith("usr")) return;
+        final String requestedId = userId;
+        TrustApiClient.fetch(requestedId, new TrustApiClient.Callback() {
             @Override public void onSuccess(TrustApiClient.Result result) {
-                if (!isAdded() || getView() == null || !requestedUser.equals(username)) return;
+                if (!isAdded() || getView() == null || !requestedId.equals(userId)) return;
                 renderLiveResult(result);
             }
             @Override public void onError(Exception error) {
-                if (!isAdded() || getView() == null || !requestedUser.equals(username)) return;
+                if (!isAdded() || getView() == null || !requestedId.equals(userId)) return;
                 Chip badge = requireView().findViewById(R.id.profileTrustBadge);
                 TextView status = requireView().findViewById(R.id.trustScoreStatus);
                 TextView value = requireView().findViewById(R.id.trustScoreValue);
@@ -194,7 +195,8 @@ public class TrustProfileFragment extends Fragment {
             String key = keyForTitle(item.title);
             int earned = result.breakdown.containsKey(key) ? result.breakdown.get(key) : 0;
             String itemStatus;
-            if (earned > 0) itemStatus = "Verified / earned";
+            if ("Account standing".equals(item.title) && !"GOOD".equals(result.standing)) itemStatus = result.standing;
+            else if (earned > 0) itemStatus = "Verified / earned";
             else if ("Email".equals(item.title) && !TextUtils.isEmpty(email)) itemStatus = "Added · verification pending";
             else itemStatus = requestAwareStatus(item.title, localFallbackStatus(item.title));
             addCheck(item.title, itemStatus, earned + " / " + item.maxPoints + " points");
