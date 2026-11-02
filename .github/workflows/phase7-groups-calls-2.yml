@@ -1,0 +1,82 @@
+name: Apply Phase 7 Group Management and Call Guards
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/phase7-groups-calls-2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch group management and call safety
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Keep group info open after remove/ban; refresh instead of jumping to Chats.
+          p = Path('android/app/src/main/java/co/tinode/tindroid/TopicInfoFragment.java')
+          s = p.read_text()
+          old = '''                    public PromisedReply<ServerMessage> onSuccess(ServerMessage result) {\n                        Intent intent = new Intent(activity, ChatsActivity.class);\n                        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);\n                        startActivity(intent);\n                        activity.finish();\n                        return null;\n                    }'''
+          new = '''                    public PromisedReply<ServerMessage> onSuccess(ServerMessage result) {\n                        activity.runOnUiThread(() -> {\n                            if (isAdded()) {\n                                notifyDataSetChanged();\n                                Toast.makeText(activity, R.string.group_updated, Toast.LENGTH_SHORT).show();\n                            }\n                        });\n                        return null;\n                    }'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'Toast.makeText(activity, R.string.group_updated' not in s:
+              raise SystemExit('TopicInfo success block not found')
+          p.write_text(s)
+
+          # Defense-in-depth: reject any externally-routed non-P2P call.
+          p = Path('android/app/src/main/java/co/tinode/tindroid/CallActivity.java')
+          s = p.read_text()
+          if 'import android.widget.Toast;' not in s:
+              s = s.replace('import android.view.WindowManager;\n', 'import android.view.WindowManager;\nimport android.widget.Toast;\n')
+          marker = '''        if (mTopic == null) {\n            Log.e(TAG, "Invalid topic '" + mTopicName + "'");\n            declineCall();\n            return;\n        }\n'''
+          guard = marker + '''        if (!mTopic.isP2PType()) {\n            Log.w(TAG, "Rejecting call for non-P2P topic: " + mTopicName);\n            Toast.makeText(this, R.string.calls_one_to_one_only, Toast.LENGTH_SHORT).show();\n            finish();\n            return;\n        }\n'''
+          if 'Rejecting call for non-P2P topic' not in s:
+              if marker not in s: raise SystemExit('CallActivity topic marker not found')
+              s = s.replace(marker, guard, 1)
+          p.write_text(s)
+
+          # Strings.
+          p = Path('android/app/src/main/res/values/strings.xml')
+          s = p.read_text()
+          if 'name="group_updated"' not in s:
+              s = s.replace('</resources>', '    <string name="group_updated">Group updated</string>\n</resources>')
+          p.write_text(s)
+          PY
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android SDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - name: Compile Phase 7 Android
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug -PTSCORE_VERSION_CODE=1997 -PTSCORE_VERSION_NAME=1.0.phase7
+
+      - name: Commit verified changes
+        run: |
+          if git diff --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android
+          git commit -m 'Improve Phase 7 group management and call safety'
+          git push
