@@ -1,0 +1,51 @@
+name: Android Startup Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-startup-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug -PTSCORE_VERSION_CODE=1100 -PTSCORE_VERSION_NAME=1.0.100
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Launch app in Android emulator and capture crash
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -n1)
+            adb install -r "$APK"
+            adb logcat -c
+            adb shell am force-stop co.tinode.tindroid
+            adb shell monkey -p co.tinode.tindroid -c android.intent.category.LAUNCHER 1
+            sleep 8
+            echo '=== PROCESS ==='
+            pid=$(adb shell pidof co.tinode.tindroid | tr -d '\r' || true)
+            echo "pid=$pid"
+            echo '=== FATAL LOGS ==='
+            adb logcat -d -v threadtime | grep -E 'FATAL EXCEPTION|AndroidRuntime|Process: co\.tinode\.tindroid|Caused by:|TScoreApp|InitRouterActivity' | tail -250 || true
+            test -n "$pid" || { echo 'APP_PROCESS_DIED'; exit 1; }
