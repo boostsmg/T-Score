@@ -2,6 +2,7 @@ package co.tinode.tindroid;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 
 import androidx.activity.EdgeToEdge;
@@ -12,23 +13,42 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 public class BaseActivity extends AppCompatActivity {
+    private static final String TAG = "BaseActivity";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // On SDK 35+, edge-to-edge is enforced by default and EdgeToEdge.enable()
-        // uses deprecated setStatusBarColor/setNavigationBarColor APIs.
-        // Only call it on older versions for backward compatibility.
+        // Some vendor ROMs throw from edge-to-edge setup even though the same code works
+        // on the emulator. UI decoration must never be allowed to hard-close the app.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            EdgeToEdge.enable(this);
+            try {
+                EdgeToEdge.enable(this);
+            } catch (Throwable t) {
+                Log.w(TAG, "Edge-to-edge enable failed; continuing without it", t);
+            }
         }
+
         super.onCreate(savedInstanceState);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
+        try {
+            WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        } catch (Throwable t) {
+            Log.w(TAG, "Window edge-to-edge setup failed; continuing", t);
+        }
     }
 
     protected void applyEdgeToEdgeInsets(View rootView) {
-        ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, windowInsets) -> {
-            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
-            v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
-            return WindowInsetsCompat.CONSUMED;
-        });
+        if (rootView == null) {
+            return;
+        }
+        try {
+            ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, windowInsets) -> {
+                Insets insets = windowInsets.getInsets(
+                        WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
+                v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+                return WindowInsetsCompat.CONSUMED;
+            });
+        } catch (Throwable t) {
+            Log.w(TAG, "Window inset listener setup failed; continuing", t);
+        }
     }
 }
