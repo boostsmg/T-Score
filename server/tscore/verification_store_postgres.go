@@ -3,6 +3,7 @@ package tscore
 import (
     "context"
     "errors"
+    "strings"
 
     "github.com/jackc/pgx/v5"
     "github.com/jackc/pgx/v5/pgconn"
@@ -41,7 +42,7 @@ func (s *VerificationStore) Create(ctx context.Context,userID string,t Verificat
     err=s.pool.QueryRow(ctx,`
 INSERT INTO tscore_verification_requests(user_id,type,evidence_ref)
 VALUES($1,$2,$3)
-RETURNING id::text,user_id,type,status,evidence_ref,note,created_at,updated_at,reviewed_at`,userID,t,evidenceRef).
+RETURNING id::text,user_id,type,status,evidence_ref,note,created_at,updated_at,reviewed_at`,userID,t,strings.TrimSpace(evidenceRef)).
         Scan(&out.ID,&out.UserID,&out.Type,&out.Status,&out.EvidenceRef,&out.Note,&out.CreatedAt,&out.UpdatedAt,&out.ReviewedAt)
     if err!=nil {
         var pgErr *pgconn.PgError
@@ -49,6 +50,19 @@ RETURNING id::text,user_id,type,status,evidence_ref,note,created_at,updated_at,r
         return VerificationRequest{},err
     }
     return out,nil
+}
+
+func (s *VerificationStore) AttachEvidence(ctx context.Context,id,evidenceRef string)(VerificationRequest,error){
+    evidenceRef=strings.TrimSpace(evidenceRef)
+    if evidenceRef==""{return VerificationRequest{},ErrVerificationInvalid}
+    var out VerificationRequest
+    err:=s.pool.QueryRow(ctx,`
+UPDATE tscore_verification_requests SET evidence_ref=$2,updated_at=NOW()
+WHERE id::text=$1 AND status='PENDING'
+RETURNING id::text,user_id,type,status,evidence_ref,note,created_at,updated_at,reviewed_at`,id,evidenceRef).
+        Scan(&out.ID,&out.UserID,&out.Type,&out.Status,&out.EvidenceRef,&out.Note,&out.CreatedAt,&out.UpdatedAt,&out.ReviewedAt)
+    if errors.Is(err,pgx.ErrNoRows){return VerificationRequest{},ErrVerificationNotFound}
+    return out,err
 }
 
 func (s *VerificationStore) ListForUser(ctx context.Context,userID string)([]VerificationRequest,error){
@@ -60,13 +74,27 @@ func (s *VerificationStore) ListForUser(ctx context.Context,userID string)([]Ver
     return out,rows.Err()
 }
 
+func (s *VerificationStore) Get(ctx context.Context,id string)(VerificationRequest,error){
+    var out VerificationRequest
+    err:=s.pool.QueryRow(ctx,`SELECT id::text,user_id,type,status,evidence_ref,note,created_at,updated_at,reviewed_at FROM tscore_verification_requests WHERE id::text=$1`,id).
+        Scan(&out.ID,&out.UserID,&out.Type,&out.Status,&out.EvidenceRef,&out.Note,&out.CreatedAt,&out.UpdatedAt,&out.ReviewedAt)
+    if errors.Is(err,pgx.ErrNoRows){return VerificationRequest{},ErrVerificationNotFound}
+    return out,err
+}
+
 func (s *VerificationStore) Decide(ctx context.Context,id string,status VerificationStatus,note string)(VerificationRequest,error){
     if status!=VerificationApproved&&status!=VerificationRejected{return VerificationRequest{},ErrVerificationInvalid}
+    current,err:=s.Get(ctx,id)
+    if err!=nil{return VerificationRequest{},err}
+    if current.Status!=VerificationPending{return VerificationRequest{},ErrVerificationNotFound}
+    if status==VerificationApproved&&IsDocumentVerification(current.Type)&&strings.TrimSpace(current.EvidenceRef)==""{
+        return VerificationRequest{},errors.New("private evidence required before approval")
+    }
     var out VerificationRequest
-    err:=s.pool.QueryRow(ctx,`
+    err=s.pool.QueryRow(ctx,`
 UPDATE tscore_verification_requests SET status=$2,note=$3,updated_at=NOW(),reviewed_at=NOW()
 WHERE id::text=$1 AND status='PENDING'
-RETURNING id::text,user_id,type,status,evidence_ref,note,created_at,updated_at,reviewed_at`,id,status,note).
+RETURNING id::text,user_id,type,status,evidence_ref,note,created_at,updated_at,reviewed_at`,id,status,strings.TrimSpace(note)).
         Scan(&out.ID,&out.UserID,&out.Type,&out.Status,&out.EvidenceRef,&out.Note,&out.CreatedAt,&out.UpdatedAt,&out.ReviewedAt)
     if errors.Is(err,pgx.ErrNoRows){return VerificationRequest{},ErrVerificationNotFound}
     return out,err
