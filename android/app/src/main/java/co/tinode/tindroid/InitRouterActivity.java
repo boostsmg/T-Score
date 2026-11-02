@@ -27,15 +27,22 @@ public class InitRouterActivity extends AppCompatActivity {
 
         super.onCreate(savedInstanceState);
 
+        // If the previous run crashed, do NOT route straight back into the same logged-in
+        // activity and create an endless close-loop. LoginActivity will expose the saved
+        // real-device crash report and keep the app in a safe state.
+        final boolean recoveryMode = TScoreApp.hasCrashReport() || !TScoreApp.isStartupHealthy();
+
         Class<?> destination = LoginActivity.class;
-        try {
-            if (BaseDb.getInstance().isReady()) {
-                destination = ChatsActivity.class;
+        if (!recoveryMode) {
+            try {
+                if (BaseDb.getInstance().isReady()) {
+                    destination = ChatsActivity.class;
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "Local database startup check failed; routing to login", t);
             }
-        } catch (Throwable t) {
-            // A damaged/old local cache must never make the whole app crash.
-            // Route to login where the user can continue normally.
-            Log.e(TAG, "Local database startup check failed; routing to login", t);
+        } else {
+            Log.w(TAG, "Previous fatal/startup failure detected; routing to safe login recovery");
         }
 
         try {
