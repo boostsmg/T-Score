@@ -35,13 +35,21 @@ func (m *memoryStore) OpenDispute(_ context.Context,dealID,actor,reason,details 
 	dp:=tscore.DealDispute{ID:"1",DealID:dealID,OpenedBy:actor,Reason:reason,Details:details,Status:"OPEN"};m.disputes[dealID]=dp;d.Status=tscore.DealDisputed;m.deals[dealID]=d;return dp,d,nil
 }
 func (m *memoryStore) GetOpenDispute(_ context.Context,dealID string)(tscore.DealDispute,error){d,ok:=m.disputes[dealID];if !ok{return tscore.DealDispute{},tscore.ErrDealNotFound};return d,nil}
+func (m *memoryStore) ReputationSummaryForUser(_ context.Context,userID string)(tscore.ReputationSummary,error){
+	s:=tscore.ReputationSummary{UserID:userID}
+	for _,reviews:=range m.reviews{for _,r:=range reviews{if r.RevieweeID==userID{s.ReviewCount++;s.AverageRating+=float64(r.Rating)}}}
+	if s.ReviewCount>0{s.AverageRating/=float64(s.ReviewCount)}
+	for _,d:=range m.deals{if (d.BuyerID==userID||d.SellerID==userID)&&d.Status==tscore.DealCompleted{s.CompletedDeals++}}
+	for dealID:=range m.disputes{d:=m.deals[dealID];if d.BuyerID==userID||d.SellerID==userID{s.DisputedDeals++}}
+	return s,nil
+}
 
 type verifier map[string]string
 func (v verifier) VerifyBase64(token string)(string,error){if u,ok:=v[token];ok{return u,nil};return "",errors.New("bad")}
 func ids()(string,string,string){return types.Uid(101).UserId(),types.Uid(202).UserId(),types.Uid(303).UserId()}
-
 func newStore(status tscore.DealStatus)(*memoryStore,string,string,string){a,b,c:=ids();m:=&memoryStore{deals:map[string]tscore.Deal{"d":{ID:"d",BuyerID:a,SellerID:b,CreatedBy:a,Status:status}},reviews:map[string]map[string]tscore.DealReview{},disputes:map[string]tscore.DealDispute{}};return m,a,b,c}
 
 func TestReviewRequiresCompletedDeal(t *testing.T){m,a,_,_:=newStore(tscore.DealDelivered);h:=New(m,verifier{"a":a});r:=httptest.NewRequest(http.MethodPost,"/v1/reputation/reviews",bytes.NewBufferString(`{"deal_id":"d","rating":5,"comment":"great deal"}`));r.Header.Set("Authorization","Bearer a");w:=httptest.NewRecorder();h.ServeHTTP(w,r);if w.Code!=http.StatusConflict{t.Fatalf("status=%d body=%s",w.Code,w.Body.String())}}
 func TestDuplicateReviewRejected(t *testing.T){m,a,_,_:=newStore(tscore.DealCompleted);h:=New(m,verifier{"a":a});body:=[]byte(`{"deal_id":"d","rating":5,"comment":"great deal"}`);for i:=0;i<2;i++{r:=httptest.NewRequest(http.MethodPost,"/v1/reputation/reviews",bytes.NewReader(body));r.Header.Set("Authorization","Bearer a");w:=httptest.NewRecorder();h.ServeHTTP(w,r);if i==0&&w.Code!=201{t.Fatalf("first=%d",w.Code)};if i==1&&w.Code!=409{t.Fatalf("second=%d body=%s",w.Code,w.Body.String())}}}
 func TestOutsiderCannotOpenDispute(t *testing.T){m,_,_,c:=newStore(tscore.DealInProgress);h:=New(m,verifier{"c":c});r:=httptest.NewRequest(http.MethodPost,"/v1/reputation/disputes",bytes.NewBufferString(`{"deal_id":"d","reason":"DELIVERY","details":"seller did not deliver as agreed"}`));r.Header.Set("Authorization","Bearer c");w:=httptest.NewRecorder();h.ServeHTTP(w,r);if w.Code!=http.StatusForbidden{t.Fatalf("status=%d body=%s",w.Code,w.Body.String())}}
+func TestPublicSummaryDoesNotRequireToken(t *testing.T){m,a,b,_:=newStore(tscore.DealCompleted);m.reviews["d"]=map[string]tscore.DealReview{a:{DealID:"d",ReviewerID:a,RevieweeID:b,Rating:5}};h:=New(m,verifier{});r:=httptest.NewRequest(http.MethodGet,"/v1/reputation/users/"+b+"/summary",nil);w:=httptest.NewRecorder();h.ServeHTTP(w,r);if w.Code!=http.StatusOK{t.Fatalf("status=%d body=%s",w.Code,w.Body.String())}}
