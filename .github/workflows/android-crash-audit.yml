@@ -53,13 +53,16 @@ jobs:
             adb logcat -d -v threadtime > launcher.log
             ! grep -E 'FATAL EXCEPTION|Process: com\.tscore\.app.*has died|StackOverflowError' launcher.log
             adb shell pidof com.tscore.app | grep -q .
+
             adb logcat -c
-            adb shell am start -n com.tscore.app/co.tinode.tindroid.ChatsActivity || true
+            adb shell am force-stop com.tscore.app || true
+            adb shell am start -W -n com.tscore.app/.CrashAuditChatsAlias > chats-start.log
+            ! grep -E 'SecurityException|Permission Denial|Error type' chats-start.log
             sleep 8
             adb logcat -d -v threadtime > chats.log
             ! grep -E 'FATAL EXCEPTION|Process: com\.tscore\.app.*has died|StackOverflowError' chats.log
             adb shell pidof com.tscore.app | grep -q .
-            adb shell dumpsys activity activities | grep -E 'mResumedActivity|LoginActivity|ChatsActivity|com.tscore.app' | head -100 || true
+            adb shell dumpsys activity activities | grep -E 'mResumedActivity|LoginActivity|ChatsActivity|CrashAuditChatsAlias|com.tscore.app' | head -100 || true
       - name: Upload audit APK
         uses: actions/upload-artifact@v4
         with:
