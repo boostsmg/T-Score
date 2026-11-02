@@ -16,6 +16,7 @@ type Store interface {
 	ListDealReviews(context.Context, string) ([]tscore.DealReview, error)
 	OpenDispute(context.Context, string, string, string, string) (tscore.DealDispute, tscore.Deal, error)
 	GetOpenDispute(context.Context, string) (tscore.DealDispute, error)
+	ReputationSummaryForUser(context.Context, string) (tscore.ReputationSummary, error)
 }
 
 type TokenVerifier interface { VerifyBase64(string) (string, error) }
@@ -25,11 +26,18 @@ type Handler struct { store Store; verifier TokenVerifier }
 func New(store Store, verifier TokenVerifier) http.Handler {
 	h := &Handler{store:store, verifier:verifier}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/reputation/users/{id}/summary", h.userSummary)
 	mux.HandleFunc("POST /v1/reputation/reviews", h.submitReview)
 	mux.HandleFunc("GET /v1/reputation/deals/{id}/reviews", h.listReviews)
 	mux.HandleFunc("POST /v1/reputation/disputes", h.openDispute)
 	mux.HandleFunc("GET /v1/reputation/deals/{id}/dispute", h.getDispute)
 	return mux
+}
+
+func (h *Handler) userSummary(w http.ResponseWriter, r *http.Request) {
+	summary,err:=h.store.ReputationSummaryForUser(r.Context(),strings.TrimSpace(r.PathValue("id")))
+	if err!=nil{writeError(w,400,"invalid user");return}
+	writeJSON(w,200,summary)
 }
 
 func (h *Handler) actor(w http.ResponseWriter, r *http.Request) (string,bool) {
