@@ -31,12 +31,25 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
-          VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
+          # Keep every new build above the already-released v1.0.100 / code 1100.
+          # Run 92 => v1.0.101 / code 1101; later runs increment monotonically.
+          VERSION_CODE=$((1009 + GITHUB_RUN_NUMBER))
+          VERSION_PATCH=$((9 + GITHUB_RUN_NUMBER))
+          VERSION_NAME="1.0.${VERSION_PATCH}"
           echo "Building T-Score versionCode=${VERSION_CODE} versionName=${VERSION_NAME}"
           ./gradlew --no-daemon assembleDebug \
             -PTSCORE_VERSION_CODE="${VERSION_CODE}" \
             -PTSCORE_VERSION_NAME="${VERSION_NAME}"
+      - name: Verify APK version is newer than v1.0.100
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          LINE="$($AAPT dump badging "$APK" | head -n1)"
+          echo "$LINE"
+          VERSION_CODE="$(echo "$LINE" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")"
+          test -n "$VERSION_CODE"
+          test "$VERSION_CODE" -gt 1100
       - name: Collect APK
         run: |
           mkdir -p dist
