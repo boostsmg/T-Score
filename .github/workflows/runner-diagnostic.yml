@@ -1,0 +1,20 @@
+name: Runner Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/runner-diagnostic.yml'
+  workflow_dispatch:
+
+jobs:
+  diagnostic:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Confirm runner assignment
+        shell: bash
+        run: |
+          echo "RUNNER_OK"
+          uname -a
+          id
