@@ -1,0 +1,28 @@
+name: Verify Clean T-Score Live API
+
+on:
+  push:
+    branches: [t-score-clean]
+    paths:
+      - '.github/workflows/clean-live-health.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify live clean API health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..90}; do
+            BODY="$(curl -fsS --max-time 5 https://boostoraa.com/tscore-clean-api/health 2>/dev/null || true)"
+            if echo "$BODY" | grep -q '"ok":true'; then
+              echo "$BODY"
+              echo 'TSCORE_CLEAN_LIVE_HEALTH=verified'
+              exit 0
+            fi
+            sleep 3
+          done
+          echo 'Clean T-Score live health did not become ready'
+          exit 1
