@@ -81,6 +81,17 @@ input_id() {
   adb shell input keyevent KEYCODE_ESCAPE || true
 }
 
+seed_live_server_prefs() {
+  # Legacy Tinode code intentionally redirects emulators to 10.0.2.2:6060 with TLS off.
+  # For T-Score E2E we must exercise the same production server/settings as a real phone.
+  local prefs_xml
+  prefs_xml='<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><string name="pref_hostName">chat.socialrise.garden</string><boolean name="pref_useTLS" value="true" /></map>'
+  adb shell run-as "$PKG" mkdir -p shared_prefs
+  printf '%s' "$prefs_xml" | adb shell run-as "$PKG" sh -c "cat > shared_prefs/${PKG}_preferences.xml"
+  echo "=== SEEDED LIVE SERVER PREFS ==="
+  adb shell run-as "$PKG" cat "shared_prefs/${PKG}_preferences.xml"
+}
+
 # 1) Cold launcher: process must survive and splash/router must be gone within 5s.
 adb logcat -c
 adb shell am force-stop "$PKG" || true
@@ -108,6 +119,7 @@ capture_and_check chats 5
 # 4) REAL E2E: create/login a reusable audit account, then physically tap every main tab.
 # Start from clean app data so stale state cannot hide navigation bugs.
 adb shell pm clear "$PKG" >/dev/null
+seed_live_server_prefs
 adb logcat -c
 adb shell am start -W -n "$PKG/co.tinode.tindroid.InitRouterActivity" > e2e-start.log
 cat e2e-start.log
@@ -140,7 +152,7 @@ if ! wait_id tabDeals 25; then
   echo "=== SIGNED-IN HOME DID NOT APPEAR ==="
   dump_ui | head -250 || true
   adb logcat -d -v threadtime > signin-failure.log
-  grep -n -B 20 -A 120 -E 'Login failed|credential|FATAL EXCEPTION|Exception|Error' signin-failure.log || true
+  grep -n -B 20 -A 120 -E 'Login failed|credential|FATAL EXCEPTION|Exception|Error|connect' signin-failure.log || true
   exit 1
 fi
 capture_and_check signed-in 2
