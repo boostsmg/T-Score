@@ -1,0 +1,43 @@
+name: Build Clean T-Score Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - t-score-clean
+    paths:
+      - 'android/cleanapp/**'
+      - 'android/settings.gradle'
+      - '.github/workflows/clean-android-build.yml'
+
+jobs:
+  build-clean-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Build clean debug APK only
+        working-directory: android
+        run: ./gradlew :cleanapp:assembleDebug --stacktrace
+
+      - name: Upload clean APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: T-Score-Clean-debug
+          path: android/cleanapp/build/outputs/apk/debug/cleanapp-debug.apk
+          if-no-files-found: error
