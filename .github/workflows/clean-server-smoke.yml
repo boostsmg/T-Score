@@ -25,6 +25,7 @@ jobs:
 
       - name: Start clean API
         run: |
+          rm -f /tmp/tscore-ci.db
           cd clean-server
           TSCORE_DB_PATH=/tmp/tscore-ci.db python -m uvicorn app:app --host 127.0.0.1 --port 8091 > /tmp/tscore-api.log 2>&1 &
           echo $! > /tmp/tscore-api.pid
@@ -33,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f /tmp/health.json /tmp/tscore-ci.db
+          rm -f /tmp/health.json
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8091/health >/tmp/health.json; then break; fi
             sleep 1
