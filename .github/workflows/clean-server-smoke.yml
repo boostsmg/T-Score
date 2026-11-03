@@ -29,30 +29,61 @@ jobs:
           TSCORE_DB_PATH=/tmp/tscore-ci.db python -m uvicorn main:app --host 127.0.0.1 --port 8091 > /tmp/tscore-api.log 2>&1 &
           echo $! > /tmp/tscore-api.pid
 
-      - name: Smoke test health signup login and core APIs
+      - name: Smoke test complete core flow
         shell: bash
         run: |
           set -euo pipefail
+          rm -f /tmp/health.json
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8091/health >/tmp/health.json; then break; fi
             sleep 1
           done
           grep -q '"ok":true' /tmp/health.json
 
-          SIGNUP=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/signup \
+          ALICE=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/signup \
             -H 'Content-Type: application/json' \
-            -d '{"username":"ci_user","email":"ci@example.com","full_name":"CI User","password":"StrongPass123"}')
-          TOKEN=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["token"])' "$SIGNUP")
+            -d '{"username":"alice_ci","email":"alice@example.com","full_name":"Alice CI","password":"StrongPass123"}')
+          A_TOKEN=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["token"])' "$ALICE")
+          A_ID=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["user"]["id"])' "$ALICE")
 
-          curl -fsS http://127.0.0.1:8091/api/v1/me -H "Authorization: Bearer $TOKEN" | grep -q 'ci_user'
-          curl -fsS http://127.0.0.1:8091/api/v1/people -H "Authorization: Bearer $TOKEN" | grep -q 'items'
-          curl -fsS http://127.0.0.1:8091/api/v1/deals -H "Authorization: Bearer $TOKEN" | grep -q 'items'
-          curl -fsS http://127.0.0.1:8091/api/v1/chats -H "Authorization: Bearer $TOKEN" | grep -q 'items'
+          BOB=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/signup \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"bob_ci","email":"bob@example.com","full_name":"Bob CI","password":"StrongPass123"}')
+          B_TOKEN=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["token"])' "$BOB")
+          B_ID=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["user"]["id"])' "$BOB")
+
+          curl -fsS http://127.0.0.1:8091/api/v1/me -H "Authorization: Bearer $A_TOKEN" | grep -q 'alice_ci'
+          curl -fsS 'http://127.0.0.1:8091/api/v1/people?q=bob' -H "Authorization: Bearer $A_TOKEN" | grep -q 'bob_ci'
+          curl -fsS http://127.0.0.1:8091/api/v1/people/$B_ID -H "Authorization: Bearer $A_TOKEN" | grep -q 'Bob CI'
+
+          curl -fsS -X POST http://127.0.0.1:8091/api/v1/messages \
+            -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
+            -d "{\"recipient_id\":$B_ID,\"body\":\"hello bob\"}" | grep -q 'hello bob'
+          curl -fsS http://127.0.0.1:8091/api/v1/chats -H "Authorization: Bearer $A_TOKEN" | grep -q 'bob_ci'
+          curl -fsS http://127.0.0.1:8091/api/v1/chats/$B_ID/messages -H "Authorization: Bearer $A_TOKEN" | grep -q 'hello bob'
+
+          DEAL=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/deals \
+            -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
+            -d "{\"title\":\"Test Deal\",\"amount\":25.5,\"counterparty_id\":$B_ID}")
+          DEAL_ID=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["id"])' "$DEAL")
+          echo "$DEAL" | grep -q 'PENDING'
+          curl -fsS -X PATCH http://127.0.0.1:8091/api/v1/deals/$DEAL_ID/status \
+            -H "Authorization: Bearer $B_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"status":"ACCEPTED"}' | grep -q 'ACCEPTED'
+          curl -fsS -X PATCH http://127.0.0.1:8091/api/v1/deals/$DEAL_ID/status \
+            -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"status":"IN_PROGRESS"}' | grep -q 'IN_PROGRESS'
+          curl -fsS -X PATCH http://127.0.0.1:8091/api/v1/deals/$DEAL_ID/status \
+            -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"status":"COMPLETED"}' | grep -q 'COMPLETED'
+          curl -fsS http://127.0.0.1:8091/api/v1/deals -H "Authorization: Bearer $B_TOKEN" | grep -q 'COMPLETED'
 
           LOGIN=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/login \
             -H 'Content-Type: application/json' \
-            -d '{"login":"ci_user","password":"StrongPass123"}')
+            -d '{"login":"alice_ci","password":"StrongPass123"}')
           echo "$LOGIN" | grep -q 'token'
+
+          curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/logout -H "Authorization: Bearer $A_TOKEN" | grep -q 'true'
 
       - name: Show API log on failure
         if: failure()
