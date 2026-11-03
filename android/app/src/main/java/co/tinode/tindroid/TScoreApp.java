@@ -18,6 +18,7 @@ public class TScoreApp extends TindroidApp {
     private static final String TAG = "TScoreApp";
     private static final String CRASH_PREFS = "tscore_crash_report";
     private static final String KEY_LAST_CRASH = "last_crash";
+    private static final String KEY_CRASH_VERSION_CODE = "crash_version_code";
     private static volatile boolean sStartupHealthy = true;
 
     @Override
@@ -75,6 +76,7 @@ public class TScoreApp extends TindroidApp {
             getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
                     .edit()
                     .putString(KEY_LAST_CRASH, report)
+                    .putInt(KEY_CRASH_VERSION_CODE, BuildConfig.VERSION_CODE)
                     .commit();
         } catch (Throwable e) {
             Log.e(TAG, "Unable to persist crash report", e);
@@ -87,28 +89,64 @@ public class TScoreApp extends TindroidApp {
 
     public static boolean hasCrashReport() {
         Context context = getAppContext();
-        if (context == null) {
-            return false;
-        }
-        try {
-            return !context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
-                    .getString(KEY_LAST_CRASH, "")
-                    .isEmpty();
-        } catch (Throwable t) {
-            return false;
-        }
+        return context != null && !getRelevantCrashReport(context).isEmpty();
     }
 
     public static String peekCrashReport() {
         Context context = getAppContext();
-        if (context == null) {
+        return context == null ? "" : getRelevantCrashReport(context);
+    }
+
+    private static String getRelevantCrashReport(Context context) {
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE);
+            String report = prefs.getString(KEY_LAST_CRASH, "");
+            if (report == null || report.isEmpty()) {
+                return "";
+            }
+
+            int reportVersionCode = prefs.getInt(KEY_CRASH_VERSION_CODE, -1);
+            if (reportVersionCode <= 0) {
+                reportVersionCode = parseVersionCode(report);
+            }
+
+            // Crash reports are only actionable for the exact build which produced them.
+            // In particular, do not keep showing a v1.0.108 Firebase crash after the user
+            // installs a newer build where that path has already been fixed.
+            if (reportVersionCode > 0 && reportVersionCode != BuildConfig.VERSION_CODE) {
+                prefs.edit()
+                        .remove(KEY_LAST_CRASH)
+                        .remove(KEY_CRASH_VERSION_CODE)
+                        .apply();
+                Log.i(TAG, "Discarded stale crash report from build " + reportVersionCode
+                        + " after update to " + BuildConfig.VERSION_CODE);
+                return "";
+            }
+
+            return report;
+        } catch (Throwable t) {
+            Log.w(TAG, "Unable to read crash report", t);
             return "";
         }
+    }
+
+    private static int parseVersionCode(String report) {
+        if (report == null) {
+            return -1;
+        }
         try {
-            return context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
-                    .getString(KEY_LAST_CRASH, "");
-        } catch (Throwable t) {
-            return "";
+            int versionLine = report.indexOf("version=");
+            if (versionLine < 0) {
+                return -1;
+            }
+            int open = report.indexOf('(', versionLine);
+            int close = open < 0 ? -1 : report.indexOf(')', open + 1);
+            if (open < 0 || close <= open + 1) {
+                return -1;
+            }
+            return Integer.parseInt(report.substring(open + 1, close).trim());
+        } catch (Throwable ignored) {
+            return -1;
         }
     }
 
@@ -121,6 +159,7 @@ public class TScoreApp extends TindroidApp {
             context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
                     .edit()
                     .remove(KEY_LAST_CRASH)
+                    .remove(KEY_CRASH_VERSION_CODE)
                     .apply();
         } catch (Throwable ignored) {
         }
