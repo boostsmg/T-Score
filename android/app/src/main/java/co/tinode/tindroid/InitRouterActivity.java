@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.splashscreen.SplashScreen;
 import co.tinode.tindroid.db.BaseDb;
 
 /**
@@ -35,6 +36,11 @@ public class InitRouterActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Theme.App.Starting is a temporary AndroidX splash theme. Installing it before
+        // AppCompat's onCreate swaps to AppTheme before AppCompat creates its sub-decor.
+        SplashScreen.installSplashScreen(this);
+        super.onCreate(savedInstanceState);
+
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
                 EdgeToEdge.enable(this);
@@ -42,8 +48,6 @@ public class InitRouterActivity extends AppCompatActivity {
                 Log.w(TAG, "Edge-to-edge init failed; continuing", t);
             }
         }
-
-        super.onCreate(savedInstanceState);
 
         // Never jump back into a known-crashing state. LoginActivity exposes the saved report.
         final boolean recoveryMode = TScoreApp.hasCrashReport() || !TScoreApp.isStartupHealthy();
