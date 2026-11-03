@@ -40,7 +40,6 @@ public class TrustProfileFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        refreshProfile();
     }
 
     @Override
@@ -139,7 +138,6 @@ public class TrustProfileFragment extends Fragment {
                     }
                 }
                 renderLocalState();
-                loadLiveTrust();
             }
             @Override public void onFailure(String message) { }
         });

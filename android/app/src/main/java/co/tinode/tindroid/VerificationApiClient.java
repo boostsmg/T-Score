@@ -60,7 +60,7 @@ final class VerificationApiClient {
 
     private static boolean allowedMime(String mime){return "image/jpeg".equals(mime)||"image/png".equals(mime)||"image/webp".equals(mime)||"application/pdf".equals(mime);}
     private static long querySize(Context c,Uri uri){try(Cursor cur=c.getContentResolver().query(uri,new String[]{OpenableColumns.SIZE},null,null,null)){if(cur!=null&&cur.moveToFirst()){int i=cur.getColumnIndex(OpenableColumns.SIZE);if(i>=0&&!cur.isNull(i))return cur.getLong(i);}}catch(Exception ignored){}return -1;}
-    private static String token(){try{if(Cache.getTinode()==null)return null;String t=Cache.getTinode().getAuthToken();return t==null||t.trim().isEmpty()?null:t;}catch(Throwable ignored){return null;}}
+    private static String token(){return Cache.getAuthTokenIfAvailable();}
     private static HttpURLConnection open(String url,String method,String token)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();c.setRequestMethod(method);c.setConnectTimeout(8000);c.setReadTimeout(10000);c.setRequestProperty("Authorization","Bearer "+token);c.setRequestProperty("Accept","application/json");if("POST".equals(method)){c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");}return c;}
     private static String read(HttpURLConnection c,int code)throws Exception{return all(code>=200&&code<300?c.getInputStream():c.getErrorStream());}
     private static String all(InputStream in)throws Exception{if(in==null)return "";StringBuilder s=new StringBuilder();try(BufferedReader r=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8))){String l;while((l=r.readLine())!=null)s.append(l);}return s.toString();}

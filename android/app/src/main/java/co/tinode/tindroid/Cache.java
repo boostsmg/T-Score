@@ -151,6 +151,28 @@ public class Cache {
         return sInstance.mTinode;
     }
 
+    /** Return the current Tinode instance without creating DB/network state. */
+    @Nullable
+    public static synchronized Tinode peekTinode() {
+        return sInstance.mTinode;
+    }
+
+    /** Return the current auth token without initializing Tinode on the caller thread. */
+    @Nullable
+    public static String getAuthTokenIfAvailable() {
+        Tinode tinode = peekTinode();
+        if (tinode == null) {
+            return null;
+        }
+        try {
+            String token = tinode.getAuthToken();
+            return token == null || token.trim().isEmpty() ? null : token;
+        } catch (Throwable t) {
+            Log.w(TAG, "Unable to read existing auth token", t);
+            return null;
+        }
+    }
+
     public static void initFCM() {
         if (sInstance.mFCMTokenRequested) {
             return;

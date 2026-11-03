@@ -179,13 +179,7 @@ final class DealApiClient {
     }
 
     private static String authToken() {
-        try {
-            if (Cache.getTinode() == null) return null;
-            String token = Cache.getTinode().getAuthToken();
-            return token == null || token.trim().isEmpty() ? null : token;
-        } catch (Throwable ignored) {
-            return null;
-        }
+        return Cache.getAuthTokenIfAvailable();
     }
 
     private static HttpURLConnection open(String url, String method, String token) throws Exception {

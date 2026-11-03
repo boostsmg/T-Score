@@ -84,7 +84,7 @@ public class DealsFragment extends Fragment {
         personPicker.launch(intent);
     }
 
-    @Override public void onResume() { super.onResume(); if (adapter != null) refresh(); }
+    @Override public void onResume() { super.onResume(); }
 
     private void refresh() {
         localDrafts = DealDraftStore.load(requireContext());

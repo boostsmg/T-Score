@@ -161,8 +161,7 @@ final class ReputationApiClient {
     }
 
     private static String token() {
-        String t = Cache.getTinode().getAuthToken();
-        return t == null || t.trim().isEmpty() ? null : t;
+        return Cache.getAuthTokenIfAvailable();
     }
 
     private static HttpURLConnection open(String url, String method, String token) throws Exception {

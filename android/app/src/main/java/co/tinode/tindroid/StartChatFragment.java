@@ -15,12 +15,11 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
 public class StartChatFragment extends Fragment {
-    private static final int COUNT_OF_TABS = 3;
+    private static final int COUNT_OF_TABS = 2;
     private static final int TAB_SEARCH = 0;
-    private static final int TAB_NEW_GROUP = 1;
-    private static final int TAB_BY_ID = 2;
+    private static final int TAB_BY_ID = 1;
 
-    private static final int[] TAB_NAMES = new int[] {R.string.find, R.string.group, R.string.by_id};
+    private static final int[] TAB_NAMES = new int[] {R.string.find, R.string.by_id};
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
@@ -67,7 +66,6 @@ public class StartChatFragment extends Fragment {
         public Fragment createFragment(int position) {
             return switch (position) {
                 case TAB_SEARCH -> new FindFragment();
-                case TAB_NEW_GROUP -> new CreateGroupFragment();
                 case TAB_BY_ID -> new AddByIDFragment();
                 default -> throw new IllegalArgumentException("Invalid TAB position " + position);
             };

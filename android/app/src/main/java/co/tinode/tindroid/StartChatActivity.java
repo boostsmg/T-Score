@@ -116,14 +116,18 @@ public class StartChatActivity extends BaseActivity
                     args.putBoolean(AttachmentHandler.ARG_AVATAR, true);
                     break;
                 default:
-                    throw new IllegalArgumentException();
+                    fragment = new StartChatFragment();
+                    tag = FRAGMENT_TABS;
+                    break;
             }
         }
 
-        if (fragment.getArguments() != null) {
-            fragment.getArguments().putAll(args);
-        } else {
-            fragment.setArguments(args);
+        if (args != null) {
+            if (fragment.getArguments() != null) {
+                fragment.getArguments().putAll(args);
+            } else {
+                fragment.setArguments(args);
+            }
         }
 
         FragmentTransaction tx = fm.beginTransaction()

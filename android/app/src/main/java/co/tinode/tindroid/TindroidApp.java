@@ -85,8 +85,8 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
     private static final String TAG = "TindroidApp";
 
     // 256 MB.
-    private static final int COIL_CACHE_SIZE = 1024 * 1024 * 256;
-    private static final int VIDEO_CACHE_SIZE = 1024 * 1024 * 256;
+    private static final int COIL_CACHE_SIZE = 1024 * 1024 * 64;
+    private static final int VIDEO_CACHE_SIZE = 1024 * 1024 * 64;
 
     private static TindroidApp sContext;
 
@@ -217,13 +217,8 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
             );
         }
 
-        // Load emoji font and initialize EmojiCompat library.
-        FontRequest fontRequest = new FontRequest(
-                "com.google.android.gms.fonts",
-                "com.google.android.gms",
-                "Noto Color Emoji Compat",
-                R.array.com_google_android_gms_fonts_certs);
-        EmojiCompat.init(new FontRequestEmojiCompatConfig(this, fontRequest));
+        // T-Score uses the platform/AppCompat emoji rendering. Do not perform a
+        // downloadable-font provider lookup during cold start.
 
         // Crashlytics is optional in T-Score test builds. The app must also start
         // cleanly when google-services.json is not bundled yet.
@@ -263,8 +258,8 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
         // Set UI mode.
         onThemeChanged(pref.getString(Utils.PREFS_UI_MODE, Utils.PREFS_KEY_AUTO_THEME));
 
-        // Clear completed/failed upload tasks.
-        WorkManager.getInstance(this).pruneWork();
+        // Do not initialize WorkManager's database merely to prune old work during
+        // cold start. Upload work is initialized lazily by the feature which needs it.
 
         // Setting up Coil with auth headers.
         OkHttpClient client = new OkHttpClient.Builder()
@@ -312,11 +307,10 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
         ImageLoader loader = new ImageLoader.Builder(this)
                 .okHttpClient(client)
                 .components(crb.build())
-                .logger(new DebugLogger(Log.VERBOSE))
                 .build();
         Coil.setImageLoader(loader);
 
-        mAudioControl = new AudioControl(this);
+        // Call audio is a Phase-7 feature. Initialize it only if a call path is used.
 
         // Listen to connectivity changes.
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
@@ -351,17 +345,25 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
     public void onStart(@NonNull LifecycleOwner owner) {
         // Check if the app has an account already. If so, initialize the shared connection with the server.
         // Initialization may fail if device is not connected to the network.
-        String uid = BaseDb.getInstance().getUid();
-        if (!TextUtils.isEmpty(uid)) {
-            Executors.newSingleThreadExecutor().execute(() -> loginInBackground(uid));
-        }
+        // SQLite open/migration must never block the main lifecycle thread.
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                String uid = BaseDb.getInstance().getUid();
+                if (!TextUtils.isEmpty(uid)) {
+                    loginInBackground(uid);
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "Background session restore failed", t);
+            }
+        });
     }
 
     @Override
     public void onStop(@NonNull LifecycleOwner owner) {
         // Disconnect now, so the connection does not wait for the timeout.
-        if (Cache.getTinode() != null) {
-            Cache.getTinode().maybeDisconnect(false);
+        Tinode tinode = Cache.peekTinode();
+        if (tinode != null) {
+            tinode.maybeDisconnect(false);
         }
     }
 
@@ -411,27 +413,34 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
         return sVideoCache;
     }
 
+    private static synchronized AudioControl audioControl() {
+        if (sContext.mAudioControl == null) {
+            sContext.mAudioControl = new AudioControl(sContext);
+        }
+        return sContext.mAudioControl;
+    }
+
     public static AudioManager getAudioManager() {
-        return sContext.mAudioControl.getAudioManager();
+        return audioControl().getAudioManager();
     }
     public static void setAudioMode(int mode) {
-        sContext.mAudioControl.setMode(mode);
+        audioControl().setMode(mode);
     }
 
     public static void setMicrophoneMute(boolean mute) {
-        sContext.mAudioControl.setMicrophoneMute(mute);
+        audioControl().setMicrophoneMute(mute);
     }
 
     public static boolean setSpeakerphoneOn(boolean enable) {
-        return sContext.mAudioControl.setSpeakerphoneOn(enable);
+        return audioControl().setSpeakerphoneOn(enable);
     }
 
     public static void abandonAudioFocus() {
-        sContext.mAudioControl.abandonAudioFocus();
+        audioControl().abandonAudioFocus();
     }
 
     public static boolean isSpeakerphoneOn() {
-        return sContext.mAudioControl.isSpeakerphoneOn();
+        return audioControl().isSpeakerphoneOn();
     }
 
     // Read saved account credentials and try to connect to server using them.
@@ -439,12 +448,8 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
         final AccountManager accountManager = AccountManager.get(TindroidApp.this);
         final Account account = Utils.getSavedAccount(accountManager, uid);
         if (account != null) {
-            // Check if sync is enabled.
-            if (ContentResolver.getMasterSyncAutomatically()) {
-                if (!ContentResolver.getSyncAutomatically(account, Utils.SYNC_AUTHORITY)) {
-                    ContentResolver.setSyncAutomatically(account, Utils.SYNC_AUTHORITY, true);
-                }
-            }
+            // T-Score directory/search does not need Android Contacts auto-sync on
+            // every foreground login. Keep account token storage, skip sync churn.
 
             // Account found, establish connection to the server and use save account credentials for login.
             String token = null;
@@ -486,9 +491,8 @@ public class TindroidApp extends Application implements DefaultLifecycleObserver
                     accountManager.setAuthToken(account, Utils.TOKEN_TYPE, tinode.getAuthToken());
                     accountManager.setUserData(account, Utils.TOKEN_EXPIRATION_TIME,
                             String.valueOf(tinode.getAuthTokenExpiration().getTime()));
-                    startWatchingContacts(TindroidApp.this, account);
-                    // Trigger sync to be sure contacts are up to date.
-                    UiUtils.requestImmediateContactsSync(account);
+                    // Do not start a permanent Contacts observer/sync job here.
+                    // T-Score user discovery uses the server directory when requested.
                 } catch (IOException ex) {
                     Log.d(TAG, "Network failure during login", ex);
                     // Do not invalidate token on network failure.

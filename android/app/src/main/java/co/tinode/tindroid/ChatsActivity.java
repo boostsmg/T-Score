@@ -260,7 +260,7 @@ public class ChatsActivity extends BaseActivity
         super.onPause();
 
         try {
-            Tinode tinode = Cache.getTinode();
+            Tinode tinode = Cache.peekTinode();
             if (tinode != null && mTinodeListener != null) {
                 tinode.removeListener(mTinodeListener);
             }
