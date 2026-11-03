@@ -1,6 +1,7 @@
 package com.tscore.clean;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
@@ -15,15 +16,50 @@ import android.widget.Toast;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
+    private static final String PREFS = "tscore_clean";
+
     private LinearLayout root;
     private LinearLayout content;
     private ApiClient api;
+    private String sessionToken = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         api = new ApiClient(BuildConfig.API_BASE_URL);
-        showAuthScreen();
+        restoreSessionOrShowLogin();
+    }
+
+    private void restoreSessionOrShowLogin() {
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        sessionToken = prefs.getString("token", "");
+        if (sessionToken == null || sessionToken.isEmpty()) {
+            showAuthScreen();
+            return;
+        }
+
+        showLoading("Checking your session...");
+        api.me(sessionToken, new ApiClient.Callback() {
+            @Override
+            public void onSuccess(JSONObject body) {
+                saveUser(body);
+                showMainShell("Chats");
+            }
+
+            @Override
+            public void onError(String message) {
+                clearSession();
+                showAuthScreen();
+            }
+        });
+    }
+
+    private void showLoading(String message) {
+        root = vertical();
+        root.setGravity(Gravity.CENTER);
+        root.setBackgroundColor(Color.WHITE);
+        root.addView(text(message, 18, true), matchWrap());
+        setContentView(root);
     }
 
     private void showAuthScreen() {
@@ -78,7 +114,6 @@ public class MainActivity extends Activity {
         root.addView(login, matchWrap());
         addGap(root, 10);
         root.addView(create, matchWrap());
-
         setContentView(root);
     }
 
@@ -138,19 +173,34 @@ public class MainActivity extends Activity {
         root.addView(create, matchWrap());
         addGap(root, 10);
         root.addView(back, matchWrap());
-
         setContentView(root);
     }
 
     private void saveSession(JSONObject body) {
-        String token = body.optString("token", "");
+        sessionToken = body.optString("token", "");
         JSONObject user = body.optJSONObject("user");
-        String username = user == null ? "" : user.optString("username", "");
-        getSharedPreferences("tscore_clean", MODE_PRIVATE)
-                .edit()
-                .putString("token", token)
-                .putString("username", username)
-                .apply();
+        SharedPreferences.Editor editor = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
+        editor.putString("token", sessionToken);
+        if (user != null) saveUserToEditor(user, editor);
+        editor.apply();
+    }
+
+    private void saveUser(JSONObject user) {
+        SharedPreferences.Editor editor = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
+        saveUserToEditor(user, editor);
+        editor.apply();
+    }
+
+    private void saveUserToEditor(JSONObject user, SharedPreferences.Editor editor) {
+        editor.putString("username", user.optString("username", ""));
+        editor.putString("full_name", user.optString("full_name", ""));
+        editor.putString("email", user.optString("email", ""));
+        editor.putInt("trust_score", user.optInt("trust_score", 50));
+    }
+
+    private void clearSession() {
+        sessionToken = "";
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().clear().apply();
     }
 
     private void showMainShell(String selected) {
@@ -193,6 +243,11 @@ public class MainActivity extends Activity {
         if (content == null) return;
         content.removeAllViews();
 
+        if ("Profile".equals(name)) {
+            renderProfile();
+            return;
+        }
+
         TextView title = text(name, 28, true);
         TextView body;
         switch (name) {
@@ -201,9 +256,6 @@ public class MainActivity extends Activity {
                 break;
             case "People":
                 body = text("Find people and check their Trust Score here.", 16, false);
-                break;
-            case "Profile":
-                body = text("Your Trust Score, reviews and account settings live here.", 16, false);
                 break;
             default:
                 body = text("Your direct conversations will appear here.", 16, false);
@@ -214,6 +266,59 @@ public class MainActivity extends Activity {
         body.setPadding(dp(28), dp(12), dp(28), 0);
         content.addView(title, matchWrap());
         content.addView(body, matchWrap());
+    }
+
+    private void renderProfile() {
+        TextView loading = text("Loading profile...", 16, false);
+        content.addView(loading, matchWrap());
+
+        api.me(sessionToken, new ApiClient.Callback() {
+            @Override
+            public void onSuccess(JSONObject user) {
+                saveUser(user);
+                if (content == null) return;
+                content.removeAllViews();
+                content.setPadding(dp(24), dp(20), dp(24), dp(20));
+
+                TextView title = text(user.optString("full_name", "Profile"), 28, true);
+                TextView username = text("@" + user.optString("username", ""), 16, false);
+                TextView email = text(user.optString("email", ""), 15, false);
+                TextView score = text("Trust Score: " + user.optInt("trust_score", 50) + "/100", 22, true);
+                Button logout = button("Log Out");
+
+                logout.setOnClickListener(v -> {
+                    logout.setEnabled(false);
+                    api.logout(sessionToken, new ApiClient.Callback() {
+                        @Override
+                        public void onSuccess(JSONObject body) {
+                            clearSession();
+                            showAuthScreen();
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            clearSession();
+                            showAuthScreen();
+                        }
+                    });
+                });
+
+                content.addView(title, matchWrap());
+                addGap(content, 8);
+                content.addView(username, matchWrap());
+                content.addView(email, matchWrap());
+                addGap(content, 24);
+                content.addView(score, matchWrap());
+                addGap(content, 28);
+                content.addView(logout, matchWrap());
+            }
+
+            @Override
+            public void onError(String message) {
+                clearSession();
+                showAuthScreen();
+            }
+        });
     }
 
     private LinearLayout vertical() {
