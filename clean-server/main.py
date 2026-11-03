@@ -14,7 +14,7 @@ from pydantic import BaseModel, EmailStr, Field
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv("TSCORE_DB_PATH", BASE_DIR / "tscore-clean.db"))
 
-app = FastAPI(title="T-Score Clean API", version="0.1.0")
+app = FastAPI(title="T-Score Clean API", version="0.2.0")
 
 
 def now_iso() -> str:
@@ -123,10 +123,17 @@ def issue_token(conn: sqlite3.Connection, user_id: int) -> str:
     return token
 
 
-def current_user(authorization: Optional[str] = Header(default=None)) -> sqlite3.Row:
+def bearer_token(authorization: Optional[str]) -> str:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Authentication required")
     token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(401, "Authentication required")
+    return token
+
+
+def current_user(authorization: Optional[str] = Header(default=None)) -> sqlite3.Row:
+    token = bearer_token(authorization)
     with db() as conn:
         row = conn.execute(
             "SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?",
@@ -139,7 +146,7 @@ def current_user(authorization: Optional[str] = Header(default=None)) -> sqlite3
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "service": "t-score-clean", "version": "0.1.0"}
+    return {"ok": True, "service": "t-score-clean", "version": "0.2.0"}
 
 
 @app.post("/api/v1/auth/signup")
@@ -172,6 +179,14 @@ def login(body: LoginRequest) -> dict:
             raise HTTPException(401, "Invalid login")
         token = issue_token(conn, row["id"])
         return {"token": token, "user": user_payload(row)}
+
+
+@app.post("/api/v1/auth/logout")
+def logout(authorization: Optional[str] = Header(default=None)) -> dict:
+    token = bearer_token(authorization)
+    with db() as conn:
+        conn.execute("DELETE FROM sessions WHERE token=?", (token,))
+    return {"ok": True}
 
 
 @app.get("/api/v1/me")
