@@ -31,7 +31,6 @@ jobs:
               s=s.replace(old,new,1)
           elif 'new AppUpdater(this).check(false);' not in s:
               raise SystemExit('onCreate updater anchor not found')
-
           old='content.addView(edit,matchWrap());addGap(content,8);Button logout=button("Log Out");'
           new='content.addView(edit,matchWrap());addGap(content,8);Button update=button("Check for Updates");update.setOnClickListener(v->new AppUpdater(MainActivity.this).check(true));content.addView(update,matchWrap());addGap(content,8);Button logout=button("Log Out");'
           if old in s:
@@ -43,7 +42,7 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew :cleanapp:assembleDebug --stacktrace
-      - name: Commit updater wiring
+      - name: Commit and safely rebase updater wiring
         shell: bash
         run: |
           set -euo pipefail
@@ -52,4 +51,6 @@ jobs:
           git config user.email 'support.boostsmg@gmail.com'
           git add android/cleanapp/src/main/java/com/tscore/clean/MainActivity.java
           git commit -m 'Wire secure updater into T-Score UI'
+          git fetch origin t-score-clean
+          git rebase origin/t-score-clean
           git push origin HEAD:t-score-clean
