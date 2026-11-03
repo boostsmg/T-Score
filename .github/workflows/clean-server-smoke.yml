@@ -26,14 +26,14 @@ jobs:
       - name: Start clean API
         run: |
           cd clean-server
-          TSCORE_DB_PATH=/tmp/tscore-ci.db python -m uvicorn main:app --host 127.0.0.1 --port 8091 > /tmp/tscore-api.log 2>&1 &
+          TSCORE_DB_PATH=/tmp/tscore-ci.db python -m uvicorn app:app --host 127.0.0.1 --port 8091 > /tmp/tscore-api.log 2>&1 &
           echo $! > /tmp/tscore-api.pid
 
       - name: Smoke test complete core flow
         shell: bash
         run: |
           set -euo pipefail
-          rm -f /tmp/health.json
+          rm -f /tmp/health.json /tmp/tscore-ci.db
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8091/health >/tmp/health.json; then break; fi
             sleep 1
@@ -53,6 +53,9 @@ jobs:
           B_ID=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["user"]["id"])' "$BOB")
 
           curl -fsS http://127.0.0.1:8091/api/v1/me -H "Authorization: Bearer $A_TOKEN" | grep -q 'alice_ci'
+          curl -fsS -X PATCH http://127.0.0.1:8091/api/v1/me \
+            -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"full_name":"Alice Updated"}' | grep -q 'Alice Updated'
           curl -fsS 'http://127.0.0.1:8091/api/v1/people?q=bob' -H "Authorization: Bearer $A_TOKEN" | grep -q 'bob_ci'
           curl -fsS http://127.0.0.1:8091/api/v1/people/$B_ID -H "Authorization: Bearer $A_TOKEN" | grep -q 'Bob CI'
 
@@ -76,13 +79,26 @@ jobs:
           curl -fsS -X PATCH http://127.0.0.1:8091/api/v1/deals/$DEAL_ID/status \
             -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
             -d '{"status":"COMPLETED"}' | grep -q 'COMPLETED'
-          curl -fsS http://127.0.0.1:8091/api/v1/deals -H "Authorization: Bearer $B_TOKEN" | grep -q 'COMPLETED'
 
+          REVIEW=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/deals/$DEAL_ID/review \
+            -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"rating":5,"comment":"Great deal"}')
+          echo "$REVIEW" | grep -q 'trust_score'
+          curl -fsS http://127.0.0.1:8091/api/v1/people/$B_ID/reviews -H "Authorization: Bearer $A_TOKEN" | grep -q 'Great deal'
+
+          curl -fsS -X POST http://127.0.0.1:8091/api/v1/people/$B_ID/block \
+            -H "Authorization: Bearer $A_TOKEN" | grep -q 'true'
+          curl -fsS -X DELETE http://127.0.0.1:8091/api/v1/people/$B_ID/block \
+            -H "Authorization: Bearer $A_TOKEN" | grep -q 'true'
+          curl -fsS -X POST http://127.0.0.1:8091/api/v1/people/$B_ID/report \
+            -H "Authorization: Bearer $A_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"reason":"CI safety test"}' | grep -q 'true'
+
+          curl -fsS http://127.0.0.1:8091/api/v1/deals -H "Authorization: Bearer $B_TOKEN" | grep -q 'COMPLETED'
           LOGIN=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/login \
             -H 'Content-Type: application/json' \
             -d '{"login":"alice_ci","password":"StrongPass123"}')
           echo "$LOGIN" | grep -q 'token'
-
           curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/logout -H "Authorization: Bearer $A_TOKEN" | grep -q 'true'
 
       - name: Show API log on failure
