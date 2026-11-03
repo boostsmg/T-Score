@@ -1,5 +1,6 @@
 package com.tscore.clean;
 
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -34,7 +35,7 @@ final class ApiClient {
             JSONObject payload = new JSONObject();
             payload.put("login", login);
             payload.put("password", password);
-            post("/api/v1/auth/login", payload, null, callback);
+            request("POST", "/api/v1/auth/login", payload, null, callback);
         } catch (Exception e) {
             callback.onError("Unable to prepare login request");
         }
@@ -47,7 +48,7 @@ final class ApiClient {
             payload.put("email", email);
             payload.put("full_name", fullName);
             payload.put("password", password);
-            post("/api/v1/auth/signup", payload, null, callback);
+            request("POST", "/api/v1/auth/signup", payload, null, callback);
         } catch (Exception e) {
             callback.onError("Unable to prepare signup request");
         }
@@ -58,11 +59,64 @@ final class ApiClient {
     }
 
     void logout(String token, Callback callback) {
-        post("/api/v1/auth/logout", new JSONObject(), token, callback);
+        request("POST", "/api/v1/auth/logout", new JSONObject(), token, callback);
     }
 
-    private void post(String path, JSONObject payload, String token, Callback callback) {
-        request("POST", path, payload, token, callback);
+    void people(String token, String query, Callback callback) {
+        String path = "/api/v1/people";
+        if (query != null && !query.trim().isEmpty()) {
+            path += "?q=" + Uri.encode(query.trim());
+        }
+        request("GET", path, null, token, callback);
+    }
+
+    void person(String token, int personId, Callback callback) {
+        request("GET", "/api/v1/people/" + personId, null, token, callback);
+    }
+
+    void chats(String token, Callback callback) {
+        request("GET", "/api/v1/chats", null, token, callback);
+    }
+
+    void messages(String token, int personId, Callback callback) {
+        request("GET", "/api/v1/chats/" + personId + "/messages", null, token, callback);
+    }
+
+    void sendMessage(String token, int recipientId, String body, Callback callback) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("recipient_id", recipientId);
+            payload.put("body", body);
+            request("POST", "/api/v1/messages", payload, token, callback);
+        } catch (Exception e) {
+            callback.onError("Unable to prepare message");
+        }
+    }
+
+    void deals(String token, Callback callback) {
+        request("GET", "/api/v1/deals", null, token, callback);
+    }
+
+    void createDeal(String token, String title, double amount, Integer counterpartyId, Callback callback) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("title", title);
+            payload.put("amount", amount);
+            if (counterpartyId != null) payload.put("counterparty_id", counterpartyId);
+            request("POST", "/api/v1/deals", payload, token, callback);
+        } catch (Exception e) {
+            callback.onError("Unable to prepare deal");
+        }
+    }
+
+    void updateDealStatus(String token, int dealId, String status, Callback callback) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("status", status);
+            request("PATCH", "/api/v1/deals/" + dealId + "/status", payload, token, callback);
+        } catch (Exception e) {
+            callback.onError("Unable to update deal");
+        }
     }
 
     private void request(String method, String path, JSONObject payload, String token, Callback callback) {
