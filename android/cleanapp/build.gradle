@@ -1,5 +1,6 @@
 apply plugin: 'com.android.application'
 
+// Final production gate: trusted BoostSMG API + updater-wired 2.0.0 source.
 def cleanApiBase = project.findProperty('TSCORE_CLEAN_API_BASE') ?: 'https://boostsmg.com/tscore-clean-api'
 
 android {
