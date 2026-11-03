@@ -1,0 +1,143 @@
+name: Lean Runtime Hardening
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/lean-runtime-hardening.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply targeted T-Score runtime cleanup
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected block not found in {path}: {old[:120]!r}")
+              text = text.replace(old, new, count)
+              p.write_text(text)
+              print("patched", path)
+
+          # Serialize first DB open. Startup, lifecycle and connectivity callbacks can race.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/db/BaseDb.java",
+              "    public static BaseDb getInstance() {",
+              "    public static synchronized BaseDb getInstance() {")
+
+          # Add non-creating cache/session accessors. Read-only UI/API paths must never create
+          # Tinode + SQLite merely because an activity is pausing/stopping or a tab is opening.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/Cache.java",
+              """        return sInstance.mTinode;\n    }\n\n    public static void initFCM() {""",
+              """        return sInstance.mTinode;\n    }\n\n    /** Return the current Tinode instance without creating DB/network state. */\n    @Nullable\n    public static synchronized Tinode peekTinode() {\n        return sInstance.mTinode;\n    }\n\n    /** Return the current auth token without initializing Tinode on the caller thread. */\n    @Nullable\n    public static String getAuthTokenIfAvailable() {\n        Tinode tinode = peekTinode();\n        if (tinode == null) {\n            return null;\n        }\n        try {\n            String token = tinode.getAuthToken();\n            return token == null || token.trim().isEmpty() ? null : token;\n        } catch (Throwable t) {\n            Log.w(TAG, \"Unable to read existing auth token\", t);\n            return null;\n        }\n    }\n\n    public static void initFCM() {""")
+
+          # Keep Application startup lean: no downloadable emoji provider lookup, WorkManager
+          # database pruning, verbose image logging or eager call-audio initialization.
+          app = "android/app/src/main/java/co/tinode/tindroid/TindroidApp.java"
+          patch(app,
+                "    private static final int COIL_CACHE_SIZE = 1024 * 1024 * 256;\n    private static final int VIDEO_CACHE_SIZE = 1024 * 1024 * 256;",
+                "    private static final int COIL_CACHE_SIZE = 1024 * 1024 * 64;\n    private static final int VIDEO_CACHE_SIZE = 1024 * 1024 * 64;")
+          patch(app,
+                """        // Load emoji font and initialize EmojiCompat library.\n        FontRequest fontRequest = new FontRequest(\n                \"com.google.android.gms.fonts\",\n                \"com.google.android.gms\",\n                \"Noto Color Emoji Compat\",\n                R.array.com_google_android_gms_fonts_certs);\n        EmojiCompat.init(new FontRequestEmojiCompatConfig(this, fontRequest));\n\n""",
+                """        // T-Score uses the platform/AppCompat emoji rendering. Do not perform a\n        // downloadable-font provider lookup during cold start.\n\n""")
+          patch(app,
+                """        // Clear completed/failed upload tasks.\n        WorkManager.getInstance(this).pruneWork();\n\n""",
+                """        // Do not initialize WorkManager's database merely to prune old work during\n        // cold start. Upload work is initialized lazily by the feature which needs it.\n\n""")
+          patch(app,
+                "                .logger(new DebugLogger(Log.VERBOSE))\n",
+                "")
+          patch(app,
+                "        mAudioControl = new AudioControl(this);\n\n",
+                "        // Call audio is a Phase-7 feature. Initialize it only if a call path is used.\n\n")
+          patch(app,
+                """    public static AudioManager getAudioManager() {\n        return sContext.mAudioControl.getAudioManager();\n    }\n    public static void setAudioMode(int mode) {\n        sContext.mAudioControl.setMode(mode);\n    }\n\n    public static void setMicrophoneMute(boolean mute) {\n        sContext.mAudioControl.setMicrophoneMute(mute);\n    }\n\n    public static boolean setSpeakerphoneOn(boolean enable) {\n        return sContext.mAudioControl.setSpeakerphoneOn(enable);\n    }\n\n    public static void abandonAudioFocus() {\n        sContext.mAudioControl.abandonAudioFocus();\n    }\n\n    public static boolean isSpeakerphoneOn() {\n        return sContext.mAudioControl.isSpeakerphoneOn();\n    }\n""",
+                """    private static synchronized AudioControl audioControl() {\n        if (sContext.mAudioControl == null) {\n            sContext.mAudioControl = new AudioControl(sContext);\n        }\n        return sContext.mAudioControl;\n    }\n\n    public static AudioManager getAudioManager() {\n        return audioControl().getAudioManager();\n    }\n    public static void setAudioMode(int mode) {\n        audioControl().setMode(mode);\n    }\n\n    public static void setMicrophoneMute(boolean mute) {\n        audioControl().setMicrophoneMute(mute);\n    }\n\n    public static boolean setSpeakerphoneOn(boolean enable) {\n        return audioControl().setSpeakerphoneOn(enable);\n    }\n\n    public static void abandonAudioFocus() {\n        audioControl().abandonAudioFocus();\n    }\n\n    public static boolean isSpeakerphoneOn() {\n        return audioControl().isSpeakerphoneOn();\n    }\n""")
+          patch(app,
+                """        String uid = BaseDb.getInstance().getUid();\n        if (!TextUtils.isEmpty(uid)) {\n            Executors.newSingleThreadExecutor().execute(() -> loginInBackground(uid));\n        }\n""",
+                """        // SQLite open/migration must never block the main lifecycle thread.\n        Executors.newSingleThreadExecutor().execute(() -> {\n            try {\n                String uid = BaseDb.getInstance().getUid();\n                if (!TextUtils.isEmpty(uid)) {\n                    loginInBackground(uid);\n                }\n            } catch (Throwable t) {\n                Log.e(TAG, \"Background session restore failed\", t);\n            }\n        });\n""")
+          patch(app,
+                """        if (Cache.getTinode() != null) {\n            Cache.getTinode().maybeDisconnect(false);\n        }\n""",
+                """        Tinode tinode = Cache.peekTinode();\n        if (tinode != null) {\n            tinode.maybeDisconnect(false);\n        }\n""")
+          patch(app,
+                """            // Check if sync is enabled.\n            if (ContentResolver.getMasterSyncAutomatically()) {\n                if (!ContentResolver.getSyncAutomatically(account, Utils.SYNC_AUTHORITY)) {\n                    ContentResolver.setSyncAutomatically(account, Utils.SYNC_AUTHORITY, true);\n                }\n            }\n\n""",
+                """            // T-Score directory/search does not need Android Contacts auto-sync on\n            // every foreground login. Keep account token storage, skip sync churn.\n\n""")
+          patch(app,
+                """                    startWatchingContacts(TindroidApp.this, account);\n                    // Trigger sync to be sure contacts are up to date.\n                    UiUtils.requestImmediateContactsSync(account);\n""",
+                """                    // Do not start a permanent Contacts observer/sync job here.\n                    // T-Score user discovery uses the server directory when requested.\n""")
+
+          # Never initialize the whole Tinode/DB stack from lightweight API token reads.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/DealApiClient.java",
+              """    private static String authToken() {\n        try {\n            if (Cache.getTinode() == null) return null;\n            String token = Cache.getTinode().getAuthToken();\n            return token == null || token.trim().isEmpty() ? null : token;\n        } catch (Throwable ignored) {\n            return null;\n        }\n    }\n""",
+              """    private static String authToken() {\n        return Cache.getAuthTokenIfAvailable();\n    }\n""")
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/VerificationApiClient.java",
+              "    private static String token(){try{if(Cache.getTinode()==null)return null;String t=Cache.getTinode().getAuthToken();return t==null||t.trim().isEmpty()?null:t;}catch(Throwable ignored){return null;}}",
+              "    private static String token(){return Cache.getAuthTokenIfAvailable();}")
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/ReputationApiClient.java",
+              """    private static String token() {\n        String t = Cache.getTinode().getAuthToken();\n        return t == null || t.trim().isEmpty() ? null : t;\n    }\n""",
+              """    private static String token() {\n        return Cache.getAuthTokenIfAvailable();\n    }\n""")
+
+          # Activity/fragment lifecycle should not create network state while leaving a screen.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/ChatsActivity.java",
+              """            Tinode tinode = Cache.getTinode();\n            if (tinode != null && mTinodeListener != null) {\n                tinode.removeListener(mTinodeListener);\n            }\n""",
+              """            Tinode tinode = Cache.peekTinode();\n            if (tinode != null && mTinodeListener != null) {\n                tinode.removeListener(mTinodeListener);\n            }\n""")
+
+          # Deals was issuing the same list request in onCreateView and immediately again in onResume.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/DealsFragment.java",
+              "    @Override public void onResume() { super.onResume(); if (adapter != null) refresh(); }",
+              "    @Override public void onResume() { super.onResume(); }")
+
+          # Profile was doing a full 3-request refresh twice on initial display, then a second trust
+          # request after verification status returned. Keep one refresh per visible resume.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/TrustProfileFragment.java",
+              """    @Override\n    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {\n        super.onViewCreated(view, savedInstanceState);\n        refreshProfile();\n    }\n""",
+              """    @Override\n    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {\n        super.onViewCreated(view, savedInstanceState);\n    }\n""")
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/TrustProfileFragment.java",
+              """                renderLocalState();\n                loadLiveTrust();\n            }\n            @Override public void onFailure(String message) { }\n""",
+              """                renderLocalState();\n            }\n            @Override public void onFailure(String message) { }\n""")
+
+          # Same restored-fragment null Bundle bug which previously existed in LoginActivity.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/StartChatActivity.java",
+              """                default:\n                    throw new IllegalArgumentException();\n            }\n        }\n\n        if (fragment.getArguments() != null) {\n            fragment.getArguments().putAll(args);\n        } else {\n            fragment.setArguments(args);\n        }\n""",
+              """                default:\n                    fragment = new StartChatFragment();\n                    tag = FRAGMENT_TABS;\n                    break;\n            }\n        }\n\n        if (args != null) {\n            if (fragment.getArguments() != null) {\n                fragment.getArguments().putAll(args);\n            } else {\n                fragment.setArguments(args);\n            }\n        }\n""")
+
+          # Groups are roadmap Phase 7, not current core. Keep source for future work but remove the
+          # group page from the active New Chat/Deal picker so it is never instantiated now.
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/StartChatFragment.java",
+              """    private static final int COUNT_OF_TABS = 3;\n    private static final int TAB_SEARCH = 0;\n    private static final int TAB_NEW_GROUP = 1;\n    private static final int TAB_BY_ID = 2;\n\n    private static final int[] TAB_NAMES = new int[] {R.string.find, R.string.group, R.string.by_id};\n""",
+              """    private static final int COUNT_OF_TABS = 2;\n    private static final int TAB_SEARCH = 0;\n    private static final int TAB_BY_ID = 1;\n\n    private static final int[] TAB_NAMES = new int[] {R.string.find, R.string.by_id};\n""")
+          patch(
+              "android/app/src/main/java/co/tinode/tindroid/StartChatFragment.java",
+              """                case TAB_SEARCH -> new FindFragment();\n                case TAB_NEW_GROUP -> new CreateGroupFragment();\n                case TAB_BY_ID -> new AddByIDFragment();\n""",
+              """                case TAB_SEARCH -> new FindFragment();\n                case TAB_BY_ID -> new AddByIDFragment();\n""")
+          PY
+
+          git diff --check
+          git status --short
+      - name: Commit runtime cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android
+          git commit -m "Harden and slim T-Score Android runtime"
+          git push origin HEAD:main
