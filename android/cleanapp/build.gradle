@@ -7,11 +7,11 @@ android {
     compileSdkVersion 36
 
     defaultConfig {
-        applicationId 'com.tscore.clean'
+        applicationId 'com.tscore.app'
         minSdkVersion 27
         targetSdkVersion 36
-        versionCode 1
-        versionName '0.1.0-clean'
+        versionCode 1200
+        versionName '2.0.0-clean'
         buildConfigField 'String', 'API_BASE_URL', '"' + cleanApiBase + '"'
     }
 
