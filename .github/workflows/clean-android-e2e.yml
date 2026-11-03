@@ -7,7 +7,6 @@ on:
       - t-score-clean
     paths:
       - 'android/cleanapp/**'
-      - 'clean-server/**'
       - '.github/scripts/clean-android-e2e.sh'
       - '.github/workflows/clean-android-e2e.yml'
 
@@ -22,18 +21,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Start clean backend and seed users
+      - name: Seed signed-in users on live clean API
         shell: bash
         run: |
           set -euo pipefail
-          pip install -r clean-server/requirements.txt
-          rm -f /tmp/tscore-e2e.db
-          cd clean-server
-          TSCORE_DB_PATH=/tmp/tscore-e2e.db python -m uvicorn app:app --host 0.0.0.0 --port 8091 >/tmp/tscore-e2e-api.log 2>&1 &
-          cd ..
-          for i in {1..30}; do curl -fsS http://127.0.0.1:8091/health >/dev/null && break; sleep 1; done
-          ALICE=$(curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/signup -H 'Content-Type: application/json' -d '{"username":"alice_e2e","email":"alice.e2e@example.com","full_name":"Alice E2E","password":"StrongPass123"}')
-          curl -fsS -X POST http://127.0.0.1:8091/api/v1/auth/signup -H 'Content-Type: application/json' -d '{"username":"bob_e2e","email":"bob.e2e@example.com","full_name":"Bob CI","password":"StrongPass123"}' >/dev/null
+          BASE='https://boostoraa.com/tscore-clean-api/api/v1'
+          curl -fsS --max-time 10 https://boostoraa.com/tscore-clean-api/health | grep -q '"ok":true'
+          SUFFIX="${GITHUB_RUN_ID}"
+          ALICE_USER="alice_e2e_${SUFFIX}"
+          BOB_USER="bob_e2e_${SUFFIX}"
+          ALICE=$(curl -fsS -X POST "$BASE/auth/signup" -H 'Content-Type: application/json' -d "{\"username\":\"$ALICE_USER\",\"email\":\"$ALICE_USER@example.com\",\"full_name\":\"Alice E2E\",\"password\":\"StrongPass123\"}")
+          curl -fsS -X POST "$BASE/auth/signup" -H 'Content-Type: application/json' -d "{\"username\":\"$BOB_USER\",\"email\":\"$BOB_USER@example.com\",\"full_name\":\"Bob CI\",\"password\":\"StrongPass123\"}" >/dev/null
           python -c 'import json,sys; print(json.loads(sys.argv[1])["token"])' "$ALICE" >/tmp/tscore-token
 
       - uses: actions/setup-java@v5
@@ -41,13 +39,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Build clean E2E APK
+      - name: Build clean E2E APK against production API
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew :cleanapp:assembleDebug -PTSCORE_CLEAN_API_BASE=http://10.0.2.2:8091 --stacktrace
+          ./gradlew :cleanapp:assembleDebug --stacktrace
 
-      - name: Run real signed-in tab flow
+      - name: Run real signed-in production tab flow
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -66,5 +64,4 @@ jobs:
           path: |
             /tmp/clean-e2e-logcat.txt
             /tmp/window.xml
-            /tmp/tscore-e2e-api.log
           if-no-files-found: ignore
