@@ -16,29 +16,50 @@ printf '%s' "$XML" | adb shell "run-as $PKG sh -c 'cat > /data/user/0/$PKG/share
 
 adb logcat -c
 adb shell am start -n "$PKG/$ACTIVITY" >/dev/null
-sleep 4
+sleep 8
 
 pid_alive() {
-  adb shell pidof "$PKG" | tr -d '\r' | grep -Eq '[0-9]'
+  adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' | grep -Eq '[0-9]'
 }
 
 fail_if_bad() {
-  adb logcat -d > /tmp/clean-e2e-logcat.txt
+  adb logcat -d > /tmp/clean-e2e-logcat.txt || true
   if grep -Eiq 'FATAL EXCEPTION|ANR in com\.tscore\.app|Process: com\.tscore\.app.*has died|StackOverflowError' /tmp/clean-e2e-logcat.txt; then
     cat /tmp/clean-e2e-logcat.txt
     exit 1
   fi
-  pid_alive || { cat /tmp/clean-e2e-logcat.txt; exit 1; }
+  pid_alive || { echo 'T-Score process is not alive'; cat /tmp/clean-e2e-logcat.txt; exit 1; }
+}
+
+dump_ui() {
+  rm -f /tmp/window.xml
+  for attempt in {1..15}; do
+    adb shell rm -f /sdcard/window.xml >/dev/null 2>&1 || true
+    adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+    if adb shell test -s /sdcard/window.xml >/dev/null 2>&1; then
+      if adb pull /sdcard/window.xml /tmp/window.xml >/dev/null 2>&1 && [ -s /tmp/window.xml ]; then
+        return 0
+      fi
+    fi
+    fail_if_bad
+    sleep 2
+  done
+  echo 'Unable to capture UI hierarchy after retries'
+  adb logcat -d > /tmp/clean-e2e-logcat.txt || true
+  exit 1
 }
 
 find_and_tap() {
   local needle="$1"
-  adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
-  adb pull /sdcard/window.xml /tmp/window.xml >/dev/null 2>&1
-  python3 - "$needle" <<'PY'
+  for attempt in {1..12}; do
+    dump_ui
+    if python3 - "$needle" <<'PY'
 import re, subprocess, sys, xml.etree.ElementTree as ET
 needle=sys.argv[1]
-root=ET.parse('/tmp/window.xml').getroot()
+try:
+    root=ET.parse('/tmp/window.xml').getroot()
+except Exception:
+    sys.exit(3)
 for n in root.iter('node'):
     text=n.attrib.get('text','')
     desc=n.attrib.get('content-desc','')
@@ -49,11 +70,20 @@ for n in root.iter('node'):
             y=(int(m.group(2))+int(m.group(4)))//2
             subprocess.check_call(['adb','shell','input','tap',str(x),str(y)])
             sys.exit(0)
-print('not found:', needle)
 sys.exit(2)
 PY
-  sleep 2
-  fail_if_bad
+    then
+      sleep 3
+      fail_if_bad
+      echo "Tapped: $needle"
+      return 0
+    fi
+    fail_if_bad
+    sleep 2
+  done
+  echo "UI target not found after retries: $needle"
+  cat /tmp/window.xml 2>/dev/null || true
+  exit 1
 }
 
 fail_if_bad
@@ -65,14 +95,15 @@ find_and_tap "Chats"
 find_and_tap "Profile"
 
 adb shell input keyevent KEYCODE_HOME
-sleep 1
+sleep 2
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
-sleep 3
+sleep 5
 fail_if_bad
 
 adb shell am force-stop "$PKG"
+sleep 1
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
-sleep 3
+sleep 5
 fail_if_bad
 
 echo "CLEAN_ANDROID_E2E_PASS"
