@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Approved T-Score artwork wrapper. Keep the source image in drawable-nodpi. -->
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/tscore_logo"
-    android:gravity="center"
-    android:filter="true" />
