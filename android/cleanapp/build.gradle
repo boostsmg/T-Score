@@ -1,6 +1,6 @@
 apply plugin: 'com.android.application'
 
-def cleanApiBase = project.findProperty('TSCORE_CLEAN_API_BASE') ?: 'https://chat.socialrise.garden/tscore-clean-api'
+def cleanApiBase = project.findProperty('TSCORE_CLEAN_API_BASE') ?: 'https://boostoraa.com/tscore-clean-api'
 
 android {
     namespace 'com.tscore.clean'
@@ -11,7 +11,7 @@ android {
         minSdkVersion 27
         targetSdkVersion 36
         versionCode 1200
-        versionName '2.0.0-clean'
+        versionName '2.0.0'
         buildConfigField 'String', 'API_BASE_URL', '"' + cleanApiBase + '"'
     }
 
