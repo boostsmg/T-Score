@@ -1,5 +1,7 @@
 apply plugin: 'com.android.application'
 
+def cleanApiBase = project.findProperty('TSCORE_CLEAN_API_BASE') ?: 'https://chat.socialrise.garden/tscore-clean-api'
+
 android {
     namespace 'com.tscore.clean'
     compileSdkVersion 36
@@ -10,6 +12,7 @@ android {
         targetSdkVersion 36
         versionCode 1
         versionName '0.1.0-clean'
+        buildConfigField 'String', 'API_BASE_URL', '"' + cleanApiBase + '"'
     }
 
     buildTypes {
@@ -26,6 +29,10 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 }
 
