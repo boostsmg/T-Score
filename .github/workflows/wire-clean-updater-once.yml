@@ -33,7 +33,7 @@ jobs:
               raise SystemExit('onCreate updater anchor not found')
 
           old='content.addView(edit,matchWrap());addGap(content,8);Button logout=button("Log Out");'
-          new='content.addView(edit,matchWrap());addGap(content,8);Button update=button("Check for Updates");update.setOnClickListener(v->new AppUpdater(this).check(true));content.addView(update,matchWrap());addGap(content,8);Button logout=button("Log Out");'
+          new='content.addView(edit,matchWrap());addGap(content,8);Button update=button("Check for Updates");update.setOnClickListener(v->new AppUpdater(MainActivity.this).check(true));content.addView(update,matchWrap());addGap(content,8);Button logout=button("Log Out");'
           if old in s:
               s=s.replace(old,new,1)
           elif 'button("Check for Updates")' not in s:
