@@ -34,7 +34,7 @@ final class ApiClient {
             JSONObject payload = new JSONObject();
             payload.put("login", login);
             payload.put("password", password);
-            post("/api/v1/auth/login", payload, callback);
+            post("/api/v1/auth/login", payload, null, callback);
         } catch (Exception e) {
             callback.onError("Unable to prepare login request");
         }
@@ -47,13 +47,25 @@ final class ApiClient {
             payload.put("email", email);
             payload.put("full_name", fullName);
             payload.put("password", password);
-            post("/api/v1/auth/signup", payload, callback);
+            post("/api/v1/auth/signup", payload, null, callback);
         } catch (Exception e) {
             callback.onError("Unable to prepare signup request");
         }
     }
 
-    private void post(String path, JSONObject payload, Callback callback) {
+    void me(String token, Callback callback) {
+        request("GET", "/api/v1/me", null, token, callback);
+    }
+
+    void logout(String token, Callback callback) {
+        post("/api/v1/auth/logout", new JSONObject(), token, callback);
+    }
+
+    private void post(String path, JSONObject payload, String token, Callback callback) {
+        request("POST", path, payload, token, callback);
+    }
+
+    private void request(String method, String path, JSONObject payload, String token, Callback callback) {
         executor.execute(() -> {
             HttpURLConnection conn = null;
             try {
@@ -61,14 +73,19 @@ final class ApiClient {
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(10000);
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestMethod(method);
                 conn.setRequestProperty("Accept", "application/json");
-                conn.setDoOutput(true);
+                if (token != null && !token.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
+                }
 
-                byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
-                try (OutputStream out = conn.getOutputStream()) {
-                    out.write(bytes);
+                if (payload != null) {
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+                    try (OutputStream out = conn.getOutputStream()) {
+                        out.write(bytes);
+                    }
                 }
 
                 int code = conn.getResponseCode();
