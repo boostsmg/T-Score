@@ -1,0 +1,48 @@
+name: Publish Clean T-Score Release Candidate
+
+on:
+  push:
+    branches: [t-score-clean]
+    paths:
+      - 'release/READY_2.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build clean release APK on hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew :cleanapp:assembleRelease --stacktrace
+          cd ..
+          APK='android/cleanapp/build/outputs/apk/release/cleanapp-release-unsigned.apk'
+          test -s "$APK"
+          cp "$APK" T-Score.apk
+          sha256sum T-Score.apk > T-Score.apk.sha256
+      - name: Replace test-latest release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload test-latest T-Score.apk T-Score.apk.sha256 --clobber
+          gh release edit test-latest --title 'T-Score 2.0.0 production candidate' --notes 'Clean Tinode-free T-Score 2.0.0, versionCode 1200. Production signing input.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: T-Score-2.0.0-unsigned-candidate
+          path: |
+            T-Score.apk
+            T-Score.apk.sha256
+          if-no-files-found: error
