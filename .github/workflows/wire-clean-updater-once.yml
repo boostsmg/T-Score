@@ -1,0 +1,55 @@
+name: Wire Clean T-Score Updater Once
+
+on:
+  push:
+    branches: [t-score-clean]
+    paths:
+      - '.github/workflows/wire-clean-updater-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: t-score-clean
+          fetch-depth: 0
+      - name: Wire updater into launch and profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('android/cleanapp/src/main/java/com/tscore/clean/MainActivity.java')
+          s=p.read_text()
+          old='@Override protected void onCreate(Bundle savedInstanceState){super.onCreate(savedInstanceState);api=new ApiClient(BuildConfig.API_BASE_URL);restoreSessionOrShowLogin();}'
+          new='@Override protected void onCreate(Bundle savedInstanceState){super.onCreate(savedInstanceState);api=new ApiClient(BuildConfig.API_BASE_URL);restoreSessionOrShowLogin();new AppUpdater(this).check(false);}'
+          if old in s:
+              s=s.replace(old,new,1)
+          elif 'new AppUpdater(this).check(false);' not in s:
+              raise SystemExit('onCreate updater anchor not found')
+
+          old='content.addView(edit,matchWrap());addGap(content,8);Button logout=button("Log Out");'
+          new='content.addView(edit,matchWrap());addGap(content,8);Button update=button("Check for Updates");update.setOnClickListener(v->new AppUpdater(this).check(true));content.addView(update,matchWrap());addGap(content,8);Button logout=button("Log Out");'
+          if old in s:
+              s=s.replace(old,new,1)
+          elif 'button("Check for Updates")' not in s:
+              raise SystemExit('profile updater anchor not found')
+          p.write_text(s)
+          PY
+          cd android
+          chmod +x gradlew
+          ./gradlew :cleanapp:assembleDebug --stacktrace
+      - name: Commit updater wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'boostsmg'
+          git config user.email 'support.boostsmg@gmail.com'
+          git add android/cleanapp/src/main/java/com/tscore/clean/MainActivity.java
+          git commit -m 'Wire secure updater into T-Score UI'
+          git push origin HEAD:t-score-clean
