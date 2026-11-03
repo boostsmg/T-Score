@@ -25,8 +25,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://boostoraa.com/tscore-clean-api/api/v1'
-          curl -fsS --max-time 10 https://boostoraa.com/tscore-clean-api/health | grep -q '"ok":true'
+          BASE='https://boostsmg.com/tscore-clean-api/api/v1'
+          curl -fsS --max-time 10 https://boostsmg.com/tscore-clean-api/health | grep -q '"ok":true'
           SUFFIX="${GITHUB_RUN_ID}"
           ALICE_USER="alice_e2e_${SUFFIX}"
           BOB_USER="bob_e2e_${SUFFIX}"
