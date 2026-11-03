@@ -8,13 +8,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv("TSCORE_DB_PATH", BASE_DIR / "tscore-clean.db"))
 
-app = FastAPI(title="T-Score Clean API", version="0.2.0")
+app = FastAPI(title="T-Score Clean API", version="0.4.0")
 
 
 def now_iso() -> str:
@@ -51,11 +51,14 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS deals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 owner_id INTEGER NOT NULL,
+                counterparty_id INTEGER,
                 title TEXT NOT NULL,
                 amount REAL NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'OPEN',
+                status TEXT NOT NULL DEFAULT 'PENDING',
                 created_at TEXT NOT NULL,
-                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+                updated_at TEXT,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(counterparty_id) REFERENCES users(id) ON DELETE SET NULL
             );
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,6 +71,11 @@ def init_db() -> None:
             );
             """
         )
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(deals)").fetchall()}
+        if "counterparty_id" not in columns:
+            conn.execute("ALTER TABLE deals ADD COLUMN counterparty_id INTEGER")
+        if "updated_at" not in columns:
+            conn.execute("ALTER TABLE deals ADD COLUMN updated_at TEXT")
 
 
 @app.on_event("startup")
@@ -96,6 +104,11 @@ class LoginRequest(BaseModel):
 class DealCreate(BaseModel):
     title: str = Field(min_length=2, max_length=120)
     amount: float = Field(ge=0)
+    counterparty_id: Optional[int] = Field(default=None, gt=0)
+
+
+class DealStatusUpdate(BaseModel):
+    status: str
 
 
 class MessageCreate(BaseModel):
@@ -103,23 +116,26 @@ class MessageCreate(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
 
 
-def user_payload(row: sqlite3.Row) -> dict:
-    return {
+def user_payload(row: sqlite3.Row, include_email: bool = True) -> dict:
+    payload = {
         "id": row["id"],
         "username": row["username"],
-        "email": row["email"],
         "full_name": row["full_name"],
         "trust_score": row["trust_score"],
         "created_at": row["created_at"],
     }
+    if include_email:
+        payload["email"] = row["email"]
+    return payload
+
+
+def public_user_payload(row: sqlite3.Row) -> dict:
+    return user_payload(row, include_email=False)
 
 
 def issue_token(conn: sqlite3.Connection, user_id: int) -> str:
     token = secrets.token_urlsafe(32)
-    conn.execute(
-        "INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)",
-        (token, user_id, now_iso()),
-    )
+    conn.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (token, user_id, now_iso()))
     return token
 
 
@@ -146,7 +162,7 @@ def current_user(authorization: Optional[str] = Header(default=None)) -> sqlite3
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "service": "t-score-clean", "version": "0.2.0"}
+    return {"ok": True, "service": "t-score-clean", "version": "0.4.0"}
 
 
 @app.post("/api/v1/auth/signup")
@@ -195,37 +211,101 @@ def me(user: sqlite3.Row = Depends(current_user)) -> dict:
 
 
 @app.get("/api/v1/people")
-def people(user: sqlite3.Row = Depends(current_user)) -> dict:
+def people(
+    q: str = Query(default="", max_length=80),
+    user: sqlite3.Row = Depends(current_user),
+) -> dict:
+    term = q.strip()
     with db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM users WHERE id<>? ORDER BY trust_score DESC, id DESC LIMIT 100",
-            (user["id"],),
-        ).fetchall()
-    return {"items": [user_payload(r) for r in rows]}
+        if term:
+            like = f"%{term}%"
+            rows = conn.execute(
+                """
+                SELECT * FROM users
+                WHERE id<>? AND (username LIKE ? COLLATE NOCASE OR full_name LIKE ? COLLATE NOCASE)
+                ORDER BY trust_score DESC, id DESC LIMIT 100
+                """,
+                (user["id"], like, like),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM users WHERE id<>? ORDER BY trust_score DESC, id DESC LIMIT 100",
+                (user["id"],),
+            ).fetchall()
+    return {"items": [public_user_payload(r) for r in rows]}
+
+
+@app.get("/api/v1/people/{person_id}")
+def person_profile(person_id: int, user: sqlite3.Row = Depends(current_user)) -> dict:
+    with db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id=?", (person_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "User not found")
+    return public_user_payload(row)
+
+
+def deal_payload(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
+    result = dict(row)
+    if row["counterparty_id"]:
+        person = conn.execute("SELECT * FROM users WHERE id=?", (row["counterparty_id"],)).fetchone()
+        result["counterparty"] = public_user_payload(person) if person else None
+    else:
+        result["counterparty"] = None
+    return result
 
 
 @app.get("/api/v1/deals")
 def list_deals(user: sqlite3.Row = Depends(current_user)) -> dict:
     with db() as conn:
         rows = conn.execute(
-            "SELECT id,title,amount,status,created_at FROM deals WHERE owner_id=? ORDER BY id DESC",
-            (user["id"],),
+            """
+            SELECT id,owner_id,counterparty_id,title,amount,status,created_at,updated_at
+            FROM deals WHERE owner_id=? OR counterparty_id=? ORDER BY id DESC
+            """,
+            (user["id"], user["id"]),
         ).fetchall()
-    return {"items": [dict(r) for r in rows]}
+        items = [deal_payload(conn, r) for r in rows]
+    return {"items": items}
 
 
 @app.post("/api/v1/deals")
 def create_deal(body: DealCreate, user: sqlite3.Row = Depends(current_user)) -> dict:
+    if body.counterparty_id == user["id"]:
+        raise HTTPException(400, "Cannot create a deal with yourself")
     with db() as conn:
+        if body.counterparty_id:
+            person = conn.execute("SELECT id FROM users WHERE id=?", (body.counterparty_id,)).fetchone()
+            if not person:
+                raise HTTPException(404, "Counterparty not found")
         cur = conn.execute(
-            "INSERT INTO deals(owner_id,title,amount,status,created_at) VALUES(?,?,?,?,?)",
-            (user["id"], body.title.strip(), body.amount, "OPEN", now_iso()),
+            "INSERT INTO deals(owner_id,counterparty_id,title,amount,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+            (user["id"], body.counterparty_id, body.title.strip(), body.amount, "PENDING", now_iso(), now_iso()),
         )
         row = conn.execute(
-            "SELECT id,title,amount,status,created_at FROM deals WHERE id=?",
+            "SELECT id,owner_id,counterparty_id,title,amount,status,created_at,updated_at FROM deals WHERE id=?",
             (cur.lastrowid,),
         ).fetchone()
-    return dict(row)
+        return deal_payload(conn, row)
+
+
+@app.patch("/api/v1/deals/{deal_id}/status")
+def update_deal_status(deal_id: int, body: DealStatusUpdate, user: sqlite3.Row = Depends(current_user)) -> dict:
+    allowed = {"PENDING", "ACCEPTED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "DISPUTED"}
+    status = body.status.strip().upper()
+    if status not in allowed:
+        raise HTTPException(400, "Invalid deal status")
+    with db() as conn:
+        row = conn.execute("SELECT * FROM deals WHERE id=?", (deal_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Deal not found")
+        if user["id"] not in {row["owner_id"], row["counterparty_id"]}:
+            raise HTTPException(403, "Not allowed")
+        conn.execute("UPDATE deals SET status=?,updated_at=? WHERE id=?", (status, now_iso(), deal_id))
+        updated = conn.execute(
+            "SELECT id,owner_id,counterparty_id,title,amount,status,created_at,updated_at FROM deals WHERE id=?",
+            (deal_id,),
+        ).fetchone()
+        return deal_payload(conn, updated)
 
 
 @app.get("/api/v1/chats")
@@ -233,14 +313,42 @@ def chats(user: sqlite3.Row = Depends(current_user)) -> dict:
     with db() as conn:
         rows = conn.execute(
             """
-            SELECT m.id,m.sender_id,m.recipient_id,m.body,m.created_at
-            FROM messages m
-            WHERE m.sender_id=? OR m.recipient_id=?
-            ORDER BY m.id DESC LIMIT 100
+            SELECT m.* FROM messages m
+            JOIN (
+                SELECT CASE WHEN sender_id=? THEN recipient_id ELSE sender_id END AS partner_id, MAX(id) AS max_id
+                FROM messages WHERE sender_id=? OR recipient_id=? GROUP BY partner_id
+            ) latest ON latest.max_id=m.id
+            ORDER BY m.id DESC
             """,
-            (user["id"], user["id"]),
+            (user["id"], user["id"], user["id"]),
         ).fetchall()
-    return {"items": [dict(r) for r in rows]}
+        items = []
+        for row in rows:
+            partner_id = row["recipient_id"] if row["sender_id"] == user["id"] else row["sender_id"]
+            partner = conn.execute("SELECT * FROM users WHERE id=?", (partner_id,)).fetchone()
+            items.append({
+                "partner": public_user_payload(partner) if partner else {"id": partner_id},
+                "last_message": row["body"],
+                "last_message_at": row["created_at"],
+            })
+    return {"items": items}
+
+
+@app.get("/api/v1/chats/{person_id}/messages")
+def conversation(person_id: int, user: sqlite3.Row = Depends(current_user)) -> dict:
+    with db() as conn:
+        partner = conn.execute("SELECT * FROM users WHERE id=?", (person_id,)).fetchone()
+        if not partner:
+            raise HTTPException(404, "User not found")
+        rows = conn.execute(
+            """
+            SELECT id,sender_id,recipient_id,body,created_at FROM messages
+            WHERE (sender_id=? AND recipient_id=?) OR (sender_id=? AND recipient_id=?)
+            ORDER BY id ASC LIMIT 300
+            """,
+            (user["id"], person_id, person_id, user["id"]),
+        ).fetchall()
+    return {"partner": public_user_payload(partner), "items": [dict(r) for r in rows]}
 
 
 @app.post("/api/v1/messages")
