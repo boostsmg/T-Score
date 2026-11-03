@@ -13,6 +13,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
@@ -30,6 +33,7 @@ import co.tinode.tindroid.db.BaseDb;
 public class LoginActivity extends BaseActivity
         implements ImageViewFragment.AvatarCompletionHandler {
     private static final String TAG = "LoginActivity";
+    private static final ExecutorService LOGIN_STATE_EXECUTOR = Executors.newSingleThreadExecutor();
 
     public static final String EXTRA_CONFIRM_CREDENTIALS = "confirmCredentials";
     public static final String EXTRA_ADDING_ACCOUNT = "addNewAccount";
@@ -64,29 +68,11 @@ public class LoginActivity extends BaseActivity
         final String crashReport = TScoreApp.peekCrashReport();
         final boolean recoveryMode = !TextUtils.isEmpty(crashReport) || !TScoreApp.isStartupHealthy();
 
-        boolean dbReady = false;
-        boolean credentialsRequired = false;
-        if (!recoveryMode) {
-            try {
-                BaseDb db = BaseDb.getInstance();
-                dbReady = db.isReady();
-                credentialsRequired = db.isCredValidationRequired();
-            } catch (Throwable t) {
-                Log.e(TAG, "Database state check failed; staying on safe login", t);
-            }
-        }
-
-        if (dbReady) {
-            Intent intent = new Intent(this, ChatsActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            finish();
-            return;
-        }
-
+        // Render immediately. SQLite open/migration must never hold the login UI or splash.
+        final boolean explicitCredentials = getIntent() != null
+                && getIntent().getBooleanExtra(EXTRA_CONFIRM_CREDENTIALS, false);
         try {
-            showFragment(credentialsRequired ? FRAGMENT_CREDENTIALS : FRAGMENT_LOGIN,
-                    null, false);
+            showFragment(explicitCredentials ? FRAGMENT_CREDENTIALS : FRAGMENT_LOGIN, null, false);
         } catch (Throwable t) {
             Log.e(TAG, "Unable to render requested login fragment; forcing clean login fragment", t);
             try {
@@ -100,9 +86,56 @@ public class LoginActivity extends BaseActivity
 
         mAvatarVM = new ViewModelProvider(this).get(AvatarViewModel.class);
 
+        if (!recoveryMode && !explicitCredentials) {
+            probeStoredSessionInBackground();
+        }
+
         if (!TextUtils.isEmpty(crashReport)) {
             showCrashReport(crashReport);
         }
+    }
+
+    private void probeStoredSessionInBackground() {
+        LOGIN_STATE_EXECUTOR.execute(() -> {
+            boolean dbReady = false;
+            boolean credentialsRequired = false;
+            try {
+                BaseDb db = BaseDb.getInstance();
+                dbReady = db.isReady();
+                credentialsRequired = db.isCredValidationRequired();
+                if (dbReady) {
+                    // Pre-warm session objects away from the main thread.
+                    Cache.getTinode();
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "Background database/session probe failed", t);
+            }
+
+            final boolean ready = dbReady;
+            final boolean needCredentials = credentialsRequired;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+
+                // Do not interrupt the user if they already moved to signup/settings/reset.
+                Fragment current = getSupportFragmentManager().findFragmentById(R.id.contentFragment);
+                if (!(current instanceof LoginFragment)) {
+                    return;
+                }
+
+                if (ready) {
+                    Intent intent = new Intent(this, ChatsActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            | Intent.FLAG_ACTIVITY_NEW_TASK
+                            | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    startActivity(intent);
+                    finish();
+                } else if (needCredentials) {
+                    showFragment(FRAGMENT_CREDENTIALS, null, false);
+                }
+            });
+        });
     }
 
     private void showCrashReport(String report) {
