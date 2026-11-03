@@ -11,11 +11,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Verify live clean API health
+      - name: Verify live health signup login and profile
         shell: bash
         run: |
           set -euo pipefail
-          BODY="$(curl -fsS --max-time 10 https://boostsmg.com/tscore-clean-api/health)"
-          echo "$BODY"
-          echo "$BODY" | grep -q '"ok":true'
-          echo 'TSCORE_CLEAN_LIVE_HEALTH=verified'
+          BASE='https://boostsmg.com/tscore-clean-api/api/v1'
+          for attempt in {1..60}; do
+            HEALTH="$(curl -fsS --max-time 8 https://boostsmg.com/tscore-clean-api/health 2>/dev/null || true)"
+            if echo "$HEALTH" | grep -q '"ok":true'; then
+              SUFFIX="${GITHUB_RUN_ID}_${attempt}"
+              USER="live_ci_${SUFFIX}"
+              EMAIL="live_ci_${SUFFIX}@example.com"
+              CODE="$(curl -sS -o /tmp/signup.json -w '%{http_code}' --max-time 10 -X POST "$BASE/auth/signup" -H 'Content-Type: application/json' -d "{\"username\":\"$USER\",\"email\":\"$EMAIL\",\"full_name\":\"Live CI\",\"password\":\"StrongPass123\"}" || true)"
+              if [ "$CODE" = '200' ]; then
+                TOKEN="$(python3 -c 'import json; print(json.load(open("/tmp/signup.json"))["token"])')"
+                curl -fsS "$BASE/me" -H "Authorization: Bearer $TOKEN" | grep -q "$USER"
+                curl -fsS -X POST "$BASE/auth/login" -H 'Content-Type: application/json' -d "{\"login\":\"$USER\",\"password\":\"StrongPass123\"}" | grep -q '"token"'
+                echo "$HEALTH"
+                echo 'TSCORE_CLEAN_LIVE_ACCOUNT_FLOW=verified'
+                exit 0
+              fi
+            fi
+            sleep 4
+          done
+          echo 'Live T-Score account flow did not become ready'
+          cat /tmp/signup.json 2>/dev/null || true
+          exit 1
