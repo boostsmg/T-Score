@@ -86,10 +86,10 @@ seed_live_server_prefs() {
   # For T-Score E2E we must exercise the same production server/settings as a real phone.
   local prefs_xml
   prefs_xml='<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><string name="pref_hostName">chat.socialrise.garden</string><boolean name="pref_useTLS" value="true" /></map>'
-  adb shell run-as "$PKG" mkdir -p shared_prefs
-  printf '%s' "$prefs_xml" | adb shell run-as "$PKG" sh -c "cat > shared_prefs/${PKG}_preferences.xml"
+  adb shell "run-as $PKG sh -c 'mkdir -p /data/user/0/$PKG/shared_prefs'"
+  printf '%s' "$prefs_xml" | adb shell "run-as $PKG sh -c 'cat > /data/user/0/$PKG/shared_prefs/${PKG}_preferences.xml'"
   echo "=== SEEDED LIVE SERVER PREFS ==="
-  adb shell run-as "$PKG" cat "shared_prefs/${PKG}_preferences.xml"
+  adb shell "run-as $PKG cat /data/user/0/$PKG/shared_prefs/${PKG}_preferences.xml"
 }
 
 # 1) Cold launcher: process must survive and splash/router must be gone within 5s.
