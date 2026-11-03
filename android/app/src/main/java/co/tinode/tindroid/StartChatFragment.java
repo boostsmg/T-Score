@@ -15,6 +15,7 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
 public class StartChatFragment extends Fragment {
+    // Current T-Score core keeps only directory search + direct ID. Group creation is Phase 7.
     private static final int COUNT_OF_TABS = 2;
     private static final int TAB_SEARCH = 0;
     private static final int TAB_BY_ID = 1;
@@ -31,17 +32,19 @@ public class StartChatFragment extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstance) {
         final FragmentActivity activity = requireActivity();
 
-        int initialTab = 0;
+        int initialTab = TAB_SEARCH;
         if (savedInstance != null) {
-            initialTab = savedInstance.getInt("activeTab");
+            // Older builds had an extra Group tab. Never restore a stale out-of-range index.
+            int restored = savedInstance.getInt("activeTab", TAB_SEARCH);
+            initialTab = Math.max(0, Math.min(restored, COUNT_OF_TABS - 1));
         }
 
         final TabLayout tabLayout = view.findViewById(R.id.tabsCreationOptions);
         final ViewPager2 viewPager = view.findViewById(R.id.tabPager);
         viewPager.setAdapter(new PagerAdapter(activity));
-        // This has no effect. It looks like an Android bug.
         viewPager.setCurrentItem(initialTab, false);
-        new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> tab.setText(TAB_NAMES[position])).attach();
+        new TabLayoutMediator(tabLayout, viewPager,
+                (tab, position) -> tab.setText(TAB_NAMES[position])).attach();
     }
 
     @Override
@@ -49,10 +52,11 @@ public class StartChatFragment extends Fragment {
         super.onSaveInstanceState(outState);
 
         final FragmentActivity activity = requireActivity();
-
         final TabLayout tabLayout = activity.findViewById(R.id.tabsCreationOptions);
         if (tabLayout != null) {
-            outState.putInt("activeTab", tabLayout.getSelectedTabPosition());
+            int selected = tabLayout.getSelectedTabPosition();
+            outState.putInt("activeTab", selected >= 0 && selected < COUNT_OF_TABS
+                    ? selected : TAB_SEARCH);
         }
     }
 
@@ -67,7 +71,7 @@ public class StartChatFragment extends Fragment {
             return switch (position) {
                 case TAB_SEARCH -> new FindFragment();
                 case TAB_BY_ID -> new AddByIDFragment();
-                default -> throw new IllegalArgumentException("Invalid TAB position " + position);
+                default -> new FindFragment();
             };
         }
 
