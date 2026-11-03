@@ -1,0 +1,32 @@
+name: T-Score 2.0.0 Release Preflight
+
+on:
+  push:
+    branches: [t-score-clean]
+    paths:
+      - '.github/workflows/clean-release-preflight.yml'
+
+jobs:
+  release-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build minified release APK
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :cleanapp:assembleRelease --stacktrace
+          test -s cleanapp/build/outputs/apk/release/cleanapp-release-unsigned.apk
+          sha256sum cleanapp/build/outputs/apk/release/cleanapp-release-unsigned.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: T-Score-2.0.0-release-preflight
+          path: android/cleanapp/build/outputs/apk/release/cleanapp-release-unsigned.apk
+          if-no-files-found: error
