@@ -1,6 +1,6 @@
 apply plugin: 'com.android.application'
 
-def cleanApiBase = project.findProperty('TSCORE_CLEAN_API_BASE') ?: 'https://boostoraa.com/tscore-clean-api'
+def cleanApiBase = project.findProperty('TSCORE_CLEAN_API_BASE') ?: 'https://boostsmg.com/tscore-clean-api'
 
 android {
     namespace 'com.tscore.clean'
